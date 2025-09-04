@@ -1,0 +1,72 @@
+'use server';
+
+/**
+ * @fileOverview This file defines a Genkit flow to generate a summary of active alerts for battery data.
+ *
+ * The flow takes a list of alerts and generates a concise summary, highlighting the most critical issues.
+ *
+ * - generateAlertSummary - A function that triggers the alert summary generation.
+ * - GenerateAlertSummaryInput - The input type for the generateAlertSummary function, including a list of alerts.
+ * - GenerateAlertSummaryOutput - The return type for the generateAlertSummary function, providing the summary.
+ */
+
+import {ai} from '@/ai/genkit';
+import {z} from 'genkit';
+
+const GenerateAlertSummaryInputSchema = z.object({
+  alerts: z.array(
+    z.string().describe('A list of active alerts for the battery.')
+  ).describe('The alerts to be summarized.'),
+});
+export type GenerateAlertSummaryInput = z.infer<typeof GenerateAlertSummaryInputSchema>;
+
+const GenerateAlertSummaryOutputSchema = z.object({
+  summary: z.string().describe('A concise summary of the active alerts.'),
+});
+export type GenerateAlertSummaryOutput = z.infer<typeof GenerateAlertSummaryOutputSchema>;
+
+export async function generateAlertSummary(input: GenerateAlertSummaryInput): Promise<GenerateAlertSummaryOutput> {
+  return generateAlertSummaryFlow(input);
+}
+
+const generateAlertSummaryPrompt = ai.definePrompt({
+  name: 'generateAlertSummaryPrompt',
+  input: {schema: GenerateAlertSummaryInputSchema},
+  output: {schema: GenerateAlertSummaryOutputSchema},
+  prompt: `You are an AI assistant specializing in summarizing battery alerts.
+
+  Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
+
+  Alerts:
+  {{#each alerts}}- {{{this}}}
+  {{/each}}
+
+  Summary:`,config: {
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_ONLY_HIGH',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_LOW_AND_ABOVE',
+      },
+    ],
+  },
+});
+
+const generateAlertSummaryFlow = ai.defineFlow(
+  {
+    name: 'generateAlertSummaryFlow',
+    inputSchema: GenerateAlertSummaryInputSchema,
+    outputSchema: GenerateAlertSummaryOutputSchema,
+  },
+  async input => {
+    const {output} = await generateAlertSummaryPrompt(input);
+    return output!;
+  }
+);

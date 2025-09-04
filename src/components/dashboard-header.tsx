@@ -1,0 +1,150 @@
+"use client";
+
+import React, { useRef, useState } from 'react';
+import { Battery, Calendar as CalendarIcon, Loader2, Trash2, Upload } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+interface DashboardHeaderProps {
+  batteryIds: string[];
+  currentBatteryId: string | null;
+  onBatteryChange: (id: string) => void;
+  onFileUpload: (files: File[]) => void;
+  selectedDate: Date;
+  onDateChange: (date: Date) => void;
+  onClearData: (backup: boolean) => void;
+  isLoading: boolean;
+  hasData: boolean;
+}
+
+export default function DashboardHeader({
+  batteryIds,
+  currentBatteryId,
+  onBatteryChange,
+  onFileUpload,
+  selectedDate,
+  onDateChange,
+  onClearData,
+  isLoading,
+  hasData,
+}: DashboardHeaderProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isClearDialogOpen, setClearDialogOpen] = useState(false);
+  const [backupData, setBackupData] = useState(false);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      onFileUpload(Array.from(event.target.files));
+      event.target.value = ''; // Reset file input
+    }
+  };
+  
+  const handleClearConfirm = () => {
+    onClearData(backupData);
+    setClearDialogOpen(false);
+  };
+
+  return (
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6 shadow-sm">
+      <div className="flex items-center gap-2">
+        <Battery className="h-7 w-7 text-primary" />
+        <h1 className="text-xl font-bold tracking-tight">BatteryView</h1>
+      </div>
+      
+      <div className="flex w-full items-center justify-end gap-2 md:gap-4">
+        {batteryIds.length > 0 && currentBatteryId && (
+          <Select onValueChange={onBatteryChange} value={currentBatteryId}>
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue placeholder="Select Battery" />
+            </SelectTrigger>
+            <SelectContent>
+              {batteryIds.map(id => (
+                <SelectItem key={id} value={id}>{id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              size="sm"
+              className={cn(
+                "w-[200px] justify-start text-left font-normal h-9",
+                !selectedDate && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => onDateChange(date as Date)}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          multiple
+          accept="image/*"
+        />
+        <Button onClick={handleUploadClick} disabled={isLoading} size="sm" className="h-9">
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="mr-2 h-4 w-4" />
+          )}
+          Upload Screenshots
+        </Button>
+
+        {hasData && (
+            <Button variant="destructive" size="icon" onClick={() => setClearDialogOpen(true)} className="h-9 w-9">
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Start Fresh</span>
+            </Button>
+        )}
+      </div>
+
+      <AlertDialog open={isClearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to start fresh?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all data for battery '{currentBatteryId}'. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center space-x-2 my-4">
+            <Switch id="backup-switch" checked={backupData} onCheckedChange={setBackupData} />
+            <Label htmlFor="backup-switch">Backup data before deleting</Label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearConfirm} className={buttonVariants({variant: 'destructive'})}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </header>
+  );
+}

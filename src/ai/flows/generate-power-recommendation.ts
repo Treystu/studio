@@ -137,7 +137,7 @@ const generatePowerRecommendationPrompt = ai.definePrompt({
     name: 'generatePowerRecommendationPrompt',
     input: { schema: GeneratePowerRecommendationInputSchema },
     output: { schema: GeneratePowerRecommendationOutputSchema },
-    model: 'googleai/gemini-pro',
+    model: 'googleai/gemini-2.5-flash',
     tools: [getWeatherForecast, getSunriseSunsetTimes],
     prompt: `You are an expert power management AI for an off-grid battery system.
       Your goal is to provide a concise, actionable recommendation to the user.
@@ -174,7 +174,4 @@ const generatePowerRecommendationFlow = ai.defineFlow(
       throw new Error('No output from AI');
     }
 
-    logger.info('generatePowerRecommendationFlow successful for:', input.location);
-    return output;
-  }
-);
+    logger.info('generatePowerRecommendationFlow successful for:', input.locatio

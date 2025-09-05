@@ -90,11 +90,6 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
   },
   async input => {
     logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoDataUris.length} images.`);
-    
-    if (!process.env.GEMINI_API_KEY) {
-        logger.error('API key is missing. Set GEMINI_API_KEY in your environment.');
-        throw new Error('Server is not configured with an API key.');
-    }
 
     const { output } = await extractDataPrompt(input);
     

@@ -18,9 +18,8 @@ const ExtractDataFromBMSImagesInputSchema = z.object({
   photoUrls: z.array(
     z
     .string()
-    .url()
     .describe(
-      "A URL to a photo of a BMS screenshot."
+      "A URL or data URI of a photo of a BMS screenshot."
     ))
 });
 export type ExtractDataFromBMSImagesInput = z.infer<typeof ExtractDataFromBMSImagesInputSchema>;

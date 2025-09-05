@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useCallback, useEffect, useMemo } from 'react';
+import { useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, RawBatteryCollection, RawBatteryDataPoint } from '@/lib/types';
 import { extractDataFromBMSImage } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
@@ -153,12 +153,16 @@ const parseDateFromFilename = (filename: string): Date | null => {
 export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { toast } = useToast();
+  const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const processUploadedFiles = useCallback(async (files: File[], dateContext: Date) => {
     const totalFiles = files.length;
     dispatch({ type: 'START_LOADING', payload: { totalFiles } });
     let successfulUploads = 0;
     
+    // Flag to track if data was added, to trigger AI calls later
+    let dataAdded = false;
+
     try {
       for (const [index, file] of files.entries()) {
         const baseProgress = (index / totalFiles) * 100;
@@ -185,8 +189,10 @@ export const useBatteryData = () => {
           const progressAfterExtract = baseProgress + (1 / totalFiles) * 100 * 0.9; // 90% of file progress
           dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterExtract, processed: index } });
           
-          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload: index === 0 } });
+          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload: state.currentBatteryId === null && index === 0 } });
           successfulUploads++;
+          dataAdded = true;
+
         } catch (error) {
           console.error('Error processing file:', file.name, error);
           toast({
@@ -205,13 +211,16 @@ export const useBatteryData = () => {
       setTimeout(() => {
         dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: null, processed: 0 } });
         dispatch({type: 'START_LOADING', payload: {totalFiles: 0}}) // Reset total files
-        toast({
-            title: 'Upload Complete',
-            description: `${successfulUploads}/${totalFiles} file(s) processed successfully.`,
-          });
+        
+        if (successfulUploads > 0) {
+            toast({
+                title: 'Upload Complete',
+                description: `${successfulUploads}/${totalFiles} file(s) processed successfully.`,
+              });
+        }
       }, 1000);
     }
-  }, [toast]);
+  }, [toast, state.currentBatteryId]);
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
     dispatch({ type: 'SET_CURRENT_BATTERY', payload: batteryId });
@@ -248,6 +257,10 @@ export const useBatteryData = () => {
   const latestDataPoint = useMemo(() => currentBatteryData.length > 0 ? currentBatteryData[currentBatteryData.length - 1] : null, [currentBatteryData]);
 
   useEffect(() => {
+    if (alertTimeoutRef.current) {
+        clearTimeout(alertTimeoutRef.current);
+    }
+
     if (!latestDataPoint) {
       if(state.alerts.length > 0) {
         dispatch({ type: 'SET_ALERTS', payload: [] });
@@ -271,15 +284,25 @@ export const useBatteryData = () => {
         }
       } catch (error) {
         console.error("Error checking for alerts:", error);
-        toast({
-            variant: "destructive",
-            title: "Could not check for alerts",
-            description: "There was an issue with the AI service.",
-        });
+        // Avoid showing toast for rate limit errors which are expected
+        if (error instanceof Error && !error.message.includes('429')) {
+            toast({
+                variant: "destructive",
+                title: "Could not check for alerts",
+                description: "There was an issue with the AI service.",
+            });
+        }
       }
     };
+    
+    // Debounce the call to prevent rate limiting issues during rapid uploads
+    alertTimeoutRef.current = setTimeout(checkForAlerts, 1500);
 
-    checkForAlerts();
+    return () => {
+        if(alertTimeoutRef.current) {
+            clearTimeout(alertTimeoutRef.current);
+        }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestDataPoint, toast]);
 

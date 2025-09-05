@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
@@ -14,8 +14,13 @@ interface HealthSummaryProps {
 export default function HealthSummary({ data }: HealthSummaryProps) {
   const [summary, setSummary] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const summaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (summaryTimeoutRef.current) {
+      clearTimeout(summaryTimeoutRef.current);
+    }
+    
     if (!data) return;
     
     async function getSummary() {
@@ -34,12 +39,23 @@ export default function HealthSummary({ data }: HealthSummaryProps) {
         setSummary(result.summary);
       } catch (error) {
         console.error("Failed to generate health summary:", error);
-        setSummary("Could not generate health summary at this time.");
+         if (error instanceof Error && !error.message.includes('429')) {
+            setSummary("Could not generate health summary at this time.");
+         } else {
+            // Keep the old summary if we are just being rate limited
+         }
       } finally {
         setIsLoading(false);
       }
     }
-    getSummary();
+
+    summaryTimeoutRef.current = setTimeout(getSummary, 1500);
+
+    return () => {
+        if (summaryTimeoutRef.current) {
+            clearTimeout(summaryTimeoutRef.current)
+        }
+    }
   }, [data]);
 
   return (
@@ -49,7 +65,7 @@ export default function HealthSummary({ data }: HealthSummaryProps) {
         <Lightbulb className="h-5 w-5 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {isLoading && !summary ? (
           <div className="space-y-2 pt-2">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-5/6" />
@@ -57,7 +73,7 @@ export default function HealthSummary({ data }: HealthSummaryProps) {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground pt-2">
-            {summary}
+            {summary || "Generating summary..."}
           </p>
         )}
       </CardContent>

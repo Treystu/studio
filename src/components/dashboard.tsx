@@ -9,10 +9,11 @@ import TrendsSection from "@/components/trends-section";
 import AlertsSection from "@/components/alerts-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Battery, AlertCircle } from "lucide-react";
+import { Battery } from "lucide-react";
 import { useState, useEffect } from "react";
-import { formatDistanceToNow, isSameDay } from "date-fns";
+import { differenceInHours, formatDistanceToNow, isSameDay } from "date-fns";
 import PowerRecommendation from "@/components/power-recommendation";
+import FreshInsights from "./fresh-insights";
 
 export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -39,6 +40,9 @@ export default function Dashboard() {
     uploadProgress,
     processedFileCount,
     totalFileCount,
+    insights,
+    isInsightsLoading,
+    getAiInsights,
   } = useBatteryData();
 
   const handleFileUpload = (files: File[]) => {
@@ -51,7 +55,7 @@ export default function Dashboard() {
   
   const isInitialLoading = isLoading && !hasData;
 
-  const isDataFresh = latestDataPoint && selectedDate ? isSameDay(new Date(latestDataPoint.timestamp), selectedDate) : false;
+  const isDataFresh = latestDataPoint ? differenceInHours(new Date(), new Date(latestDataPoint.timestamp)) < 12 : false;
   const timeAgo = latestDataPoint ? formatDistanceToNow(new Date(latestDataPoint.timestamp), { addSuffix: true }) : '';
 
   return (
@@ -96,7 +100,7 @@ export default function Dashboard() {
                   <CardHeader>
                     <CardTitle className="text-2xl font-bold">No Data Available</CardTitle>
                     <CardDescription>Upload screenshots for battery '{currentBatteryId}' using the date picker for context.</CardDescription>
-                  </CardHeader>
+                  </Header>
                   <CardContent>
                     <Battery className="mx-auto h-24 w-24 text-primary mb-4" />
                   </CardContent>
@@ -104,27 +108,33 @@ export default function Dashboard() {
               </div>
         ) : (
           <>
-            {!isDataFresh && (
+             {isDataFresh && latestDataPoint && (
+                <FreshInsights 
+                    insights={insights}
+                    isLoading={isInsightsLoading}
+                    onGenerate={getAiInsights}
+                />
+            )}
+            
+            {isDataFresh && latestDataPoint ? (
+              <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                <AlertsSection alerts={alerts} />
+                <PowerRecommendation latestDataPoint={latestDataPoint} />
+                <OverviewSection data={latestDataPoint} healthSummary={healthSummary} isSummaryLoading={isInsightsLoading} onGenerateSummary={getAiInsights} />
+                <MetricsSection data={latestDataPoint} />
+              </div>
+            ) : (
                 <Card className="animate-fade-in bg-amber-500/10 border-amber-500/30">
                     <CardContent className="flex items-center gap-3 p-4">
-                        <AlertCircle className="h-5 w-5 text-amber-500" />
+                        <Battery className="h-5 w-5 text-amber-500" />
                         <div>
-                            <p className="font-semibold text-amber-700 dark:text-amber-300">You are viewing historical data</p>
+                            <p className="font-semibold text-amber-700 dark:text-amber-300">Viewing Historical Data</p>
                             <p className="text-sm text-amber-600 dark:text-amber-400">
-                                The metrics shown below are from the last known reading ({timeAgo}). Live data is not displayed.
+                                The metrics below are from the last known reading on this day ({timeAgo}).
                             </p>
                         </div>
                     </CardContent>
                 </Card>
-            )}
-            
-            {isDataFresh && latestDataPoint && (
-              <div className="grid grid-cols-1 gap-8 animate-fade-in">
-                <AlertsSection alerts={alerts} />
-                <PowerRecommendation latestDataPoint={latestDataPoint} />
-                <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
-                <MetricsSection data={latestDataPoint} />
-              </div>
             )}
              <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
           </>

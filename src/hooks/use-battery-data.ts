@@ -2,12 +2,14 @@
 "use client";
 
 import { useReducer, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, RawBatteryCollection, RawBatteryDataPoint } from '@/lib/types';
+import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, Insight, RawBatteryCollection, RawBatteryDataPoint } from '@/lib/types';
 import { extractDataFromBMSImages } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
 import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
+import { generateDashboardInsights } from '@/ai/flows/generate-dashboard-insights';
 import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
+import { differenceInHours } from 'date-fns';
 
 // == STATE & REDUCER == //
 type State = {
@@ -17,7 +19,8 @@ type State = {
   isLoading: boolean;
   alerts: string[];
   healthSummary: string;
-  isSummaryLoading: boolean;
+  insights: Insight[];
+  isInsightsLoading: boolean;
   uploadProgress: number | null;
   processedFileCount: number;
   totalFileCount: number;
@@ -26,14 +29,15 @@ type State = {
 type Action =
   | { type: 'START_LOADING'; payload: { totalFiles: number } }
   | { type: 'STOP_LOADING' }
-  | { type: 'START_SUMMARY_LOADING' }
-  | { type: 'STOP_SUMMARY_LOADING' }
+  | { type: 'START_INSIGHTS_LOADING' }
+  | { type: 'STOP_INSIGHTS_LOADING' }
   | { type: 'RESET_UPLOAD_STATE' }
   | { type: 'SET_BATTERIES'; payload: { batteries: BatteryCollection, rawBatteries: RawBatteryCollection } }
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
   | { type: 'ADD_DATA_BATCH'; payload: { data: BatteryDataPoint[]; dateContext: Date, isFirstUpload: boolean } }
   | { type: 'SET_ALERTS'; payload: string[] }
   | { type: 'SET_HEALTH_SUMMARY'; payload: string }
+  | { type: 'SET_INSIGHTS'; payload: Insight[] }
   | { type: 'CLEAR_BATTERY_DATA'; payload: string }
   | { type: 'UPDATE_UPLOAD_PROGRESS'; payload: { processed: number, total: number } };
 
@@ -44,7 +48,8 @@ const initialState: State = {
   isLoading: false,
   alerts: [],
   healthSummary: '',
-  isSummaryLoading: false,
+  insights: [],
+  isInsightsLoading: false,
   uploadProgress: null,
   processedFileCount: 0,
   totalFileCount: 0,
@@ -58,16 +63,16 @@ const reducer = (state: State, action: Action): State => {
       return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
-    case 'START_SUMMARY_LOADING':
-      return { ...state, isSummaryLoading: true };
-    case 'STOP_SUMMARY_LOADING':
-        return { ...state, isSummaryLoading: false };
+    case 'START_INSIGHTS_LOADING':
+      return { ...state, isInsightsLoading: true };
+    case 'STOP_INSIGHTS_LOADING':
+        return { ...state, isInsightsLoading: false };
     case 'RESET_UPLOAD_STATE':
         return { ...state, isLoading: false, totalFileCount: 0, processedFileCount: 0, uploadProgress: null };
     case 'SET_BATTERIES':
       return { ...state, batteries: action.payload.batteries, rawBatteries: action.payload.rawBatteries };
     case 'SET_CURRENT_BATTERY':
-      return { ...state, currentBatteryId: action.payload, alerts: [], healthSummary: '' };
+      return { ...state, currentBatteryId: action.payload, alerts: [], healthSummary: '', insights: [] };
     case 'ADD_DATA_BATCH': {
       const { data, dateContext, isFirstUpload } = action.payload;
       logger.log(`Adding batch of ${data.length} data points.`);
@@ -122,7 +127,7 @@ const reducer = (state: State, action: Action): State => {
         }
       });
       
-      const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
+      const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries, insights: [] };
       if (isFirstUpload && !state.currentBatteryId) {
         logger.log(`This is the first upload. Setting current battery to: ${newCurrentBatteryId}`);
         newState.currentBatteryId = newCurrentBatteryId;
@@ -133,6 +138,8 @@ const reducer = (state: State, action: Action): State => {
       return { ...state, alerts: action.payload };
     case 'SET_HEALTH_SUMMARY':
         return { ...state, healthSummary: action.payload };
+    case 'SET_INSIGHTS':
+        return { ...state, insights: action.payload };
     case 'CLEAR_BATTERY_DATA': {
       if (!action.payload) return state;
       const newBatteries = { ...state.batteries };
@@ -140,7 +147,7 @@ const reducer = (state: State, action: Action): State => {
       const newRawBatteries = { ...state.rawBatteries };
       delete newRawBatteries[action.payload];
       const newCurrentBatteryId = Object.keys(newBatteries)[0] || null;
-      return { ...state, batteries: newBatteries, rawBatteries: newRawBatteries, currentBatteryId: newCurrentBatteryId, alerts: [], healthSummary: '' };
+      return { ...state, batteries: newBatteries, rawBatteries: newRawBatteries, currentBatteryId: newCurrentBatteryId, alerts: [], healthSummary: '', insights: [] };
     }
     case 'UPDATE_UPLOAD_PROGRESS':
         const { processed, total } = action.payload;
@@ -149,22 +156,6 @@ const reducer = (state: State, action: Action): State => {
       return state;
   }
 };
-
-const parseDateFromFilename = (filename: string): Date | null => {
-    const regex1 = /(\d{4})(\d{2})(\d{2})[-_]?(\d{2})(\d{2})(\d{2})/;
-    const match1 = filename.match(regex1);
-    if (match1) {
-        const [, year, month, day, hour, minute, second] = match1.map(Number);
-        return new Date(year, month - 1, day, hour, minute, second);
-    }
-    const regex2 = /(\d{4})-(\d{2})-(\d{2})[-_]?(\d{2})-(\d{2})-(\d{2})/;
-    const match2 = filename.match(regex2);
-    if (match2) {
-        const [, year, month, day, hour, minute, second] = match2.map(Number);
-        return new Date(year, month - 1, day, hour, minute, second);
-    }
-    return null;
-}
 
 // == HOOK == //
 export const useBatteryData = () => {
@@ -178,10 +169,25 @@ export const useBatteryData = () => {
       toast({ variant: 'destructive', title: 'No Data', description: 'Cannot generate insights without data.'});
       return;
     }
+
+    const isDataFresh = differenceInHours(new Date(), new Date(latestDataPoint.timestamp)) < 12;
   
     logger.log("AI Insights: User requested insights...");
-    dispatch({ type: 'START_SUMMARY_LOADING' });
+    dispatch({ type: 'START_INSIGHTS_LOADING' });
     try {
+      if (isDataFresh) {
+        logger.log("AI Insights: Data is fresh, getting dashboard insights.");
+        const insightsResult = await generateDashboardInsights({
+            latestData: { soc: latestDataPoint.soc, power: latestDataPoint.power },
+            location: "Pahoa, HI" // Hardcoded for now
+        });
+        if (insightsResult?.insights) {
+            logger.log("AI Insights: New dashboard insights received.");
+            dispatch({ type: 'SET_INSIGHTS', payload: insightsResult.insights });
+        }
+      }
+
+      // Always get health summary and alerts on-demand
       const commonPayload = {
         batteryId: latestDataPoint.batteryId,
         soc: latestDataPoint.soc,
@@ -212,7 +218,7 @@ export const useBatteryData = () => {
       logger.error("AI Insights: Error running tasks:", error);
       toast({ variant: 'destructive', title: 'AI Error', description: 'Could not generate AI insights.'});
     } finally {
-        dispatch({ type: 'STOP_SUMMARY_LOADING'});
+        dispatch({ type: 'STOP_INSIGHTS_LOADING'});
     }
   }, [state.currentBatteryId, state.batteries, toast]);
 
@@ -294,6 +300,7 @@ export const useBatteryData = () => {
   
   return {
     ...state,
+    isInsightsLoading: state.isInsightsLoading,
     currentBatteryData,
     currentBatteryRawData,
     latestDataPoint,

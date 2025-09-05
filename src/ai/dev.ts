@@ -1,8 +1,4 @@
-
 'use server';
-
-import {config} from 'dotenv';
-config();
 
 import {genkit, type GenkitOptions} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';

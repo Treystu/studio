@@ -103,13 +103,13 @@ export default function Dashboard() {
         ) : (
           <>
             {!isDataFresh && (
-                <Card className="animate-fade-in">
+                <Card className="animate-fade-in bg-amber-500/10 border-amber-500/30">
                     <CardContent className="flex items-center gap-3 p-4">
                         <AlertCircle className="h-5 w-5 text-amber-500" />
                         <div>
-                            <p className="font-semibold">Live metrics are unavailable</p>
-                            <p className="text-sm text-muted-foreground">
-                                Last reading was {timeAgo}. Only historical data is being shown.
+                            <p className="font-semibold text-amber-700 dark:text-amber-300">You are viewing historical data</p>
+                            <p className="text-sm text-amber-600 dark:text-amber-400">
+                                The metrics shown are from the last known reading ({timeAgo}). Live data is not available.
                             </p>
                         </div>
                     </CardContent>

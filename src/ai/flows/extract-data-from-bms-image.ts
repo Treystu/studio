@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 const ExtractDataFromBMSImageInputSchema = z.object({
   photoDataUri: z
@@ -17,6 +18,7 @@ const ExtractDataFromBMSImageInputSchema = z.object({
     .describe(
       "A photo of a BMS screenshot, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
+  apiKey: z.string().optional().describe('The Google AI API key.'),
 });
 export type ExtractDataFromBMSImageInput = z.infer<typeof ExtractDataFromBMSImageInputSchema>;
 
@@ -45,7 +47,7 @@ export async function extractDataFromBMSImage(input: ExtractDataFromBMSImageInpu
 
 const prompt = ai.definePrompt({
   name: 'extractDataFromBMSImagePrompt',
-  input: {schema: ExtractDataFromBMSImageInputSchema},
+  input: {schema: z.object({ photoDataUri: z.string() })},
   output: {schema: ExtractDataFromBMSImageOutputSchema},
   prompt: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
 
@@ -100,7 +102,14 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
     outputSchema: ExtractDataFromBMSImageOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const { apiKey, ...promptData } = input;
+    const model = googleAI({ apiKey });
+
+    const { output } = await ai.generate({
+      prompt,
+      model,
+      input: promptData,
+    });
     return output!;
   }
 );

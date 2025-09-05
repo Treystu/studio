@@ -12,6 +12,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -21,6 +22,7 @@ const DisplayAlertsInputSchema = z.object({
   maxCellVoltage: z.number().nullable().describe('The maximum cell voltage. Can be null if data is missing.'),
   minCellVoltage: z.number().nullable().describe('The minimum cell voltage. Can be null if data is missing.'),
   averageCellVoltage: z.number().nullable().describe('The average cell voltage. Can be null if data is missing.'),
+  apiKey: z.string().optional().describe('The Google AI API key.'),
 });
 export type DisplayAlertsInput = z.infer<typeof DisplayAlertsInputSchema>;
 
@@ -71,7 +73,14 @@ const displayAlertsFlow = ai.defineFlow(
     outputSchema: DisplayAlertsOutputSchema,
   },
   async input => {
-    const {output} = await displayAlertsPrompt(input);
+    const {apiKey, ...promptData} = input;
+    const model = googleAI({apiKey});
+
+    const {output} = await ai.generate({
+      prompt: displayAlertsPrompt,
+      model,
+      input: promptData,
+    });
     return output!;
   }
 );

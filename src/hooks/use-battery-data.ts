@@ -5,7 +5,10 @@ import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, Raw
 import { extractDataFromBMSImage } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
 import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
+import { generateAlertSummary } from '@/ai/flows/generate-alert-summary';
 import { useToast } from './use-toast';
+
+const API_KEY_STORAGE_KEY = "gemini_api_key";
 
 // == STATE & REDUCER == //
 type State = {
@@ -167,9 +170,27 @@ export const useBatteryData = () => {
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
   const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
   const isProcessingQueue = useRef(false);
+  const [apiKey, setApiKey] = useState<string | null>(null);
 
+  useEffect(() => {
+    // This runs on the client and will not cause a hydration mismatch.
+    const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+    if (storedKey) {
+      setApiKey(storedKey);
+    }
+  }, []);
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
+     if (!apiKey) {
+      toast({
+        variant: "destructive",
+        title: "API Key Not Found",
+        description: "Please set your Gemini API key in the settings menu before uploading.",
+      });
+      dispatch({ type: 'RESET_UPLOAD_STATE' });
+      return false; // Stop processing
+    }
+
     try {
         let fileDateContext = dateContext;
         const dateFromFilename = parseDateFromFilename(file.name);
@@ -184,29 +205,28 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
 
-        const extractedData = await extractDataFromBMSImage({ photoDataUri: dataUri });
+        const extractedData = await extractDataFromBMSImage({ photoDataUri: dataUri, apiKey });
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         return true;
     } catch (error) {
         console.error('Error processing file:', file.name, error);
-
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
 
-        if (error instanceof Error && /429|quota/.test(error.message)) {
+        if (error instanceof Error && /429|quota/.test(errorMessage)) {
             toast({
                 variant: 'destructive',
                 title: 'API Rate limit reached',
                 description: `Pausing uploads. Will retry in 1 minute.`,
             });
-            return false;
+            return false; // Indicate failure to retry
         }
 
         toast({
             variant: 'destructive',
             title: `Error processing ${file.name}`,
-            description: 'Could not extract data from the image. ' + errorMessage,
+            description: 'Could not extract data. ' + errorMessage,
         });
-        return true; 
+        return true; // Indicate success to continue queue
     }
   }
 
@@ -236,10 +256,12 @@ export const useBatteryData = () => {
       isProcessingQueue.current = false;
       processQueue(); 
     } else {
+      // Failure, likely rate-limiting. Pause and retry.
       isProcessingQueue.current = false;
       setTimeout(processQueue, 60000); 
     }
-  }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, apiKey]);
 
   const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
     dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
@@ -289,14 +311,15 @@ export const useBatteryData = () => {
         clearTimeout(aiTimeoutRef.current);
     }
 
-    if (!latestDataPoint || isAiRunning.current) {
+    if (!latestDataPoint || isAiRunning.current || !apiKey) {
       return;
     }
     
     const runAiTasks = async () => {
       isAiRunning.current = true;
       try {
-        const healthSummaryPromise = summarizeBatteryHealth({
+        const commonPayload = {
+          apiKey,
           batteryId: latestDataPoint.batteryId,
           soc: latestDataPoint.soc,
           voltage: latestDataPoint.voltage,
@@ -305,41 +328,39 @@ export const useBatteryData = () => {
           minCellVoltage: latestDataPoint.minCellVoltage ?? null,
           averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
           cycleCount: latestDataPoint.cycleCount,
-        });
+        };
 
-        let alertsPromise: Promise<{ alerts: string[] }> | null = null;
+        const healthSummaryPromise = summarizeBatteryHealth(commonPayload);
+
         const socChanged = previousDataPoint ? Math.abs(latestDataPoint.soc - previousDataPoint.soc) > 2 : true;
         const cellDiffChanged = previousDataPoint ? Math.abs((latestDataPoint.cellVoltageDifference ?? 0) - (previousDataPoint.cellVoltageDifference ?? 0)) > 0.005 : true;
-
-        if (socChanged || cellDiffChanged) {
-          alertsPromise = displayAlertsForDataDeviations({
-            batteryId: latestDataPoint.batteryId,
-            soc: latestDataPoint.soc,
-            voltage: latestDataPoint.voltage,
-            current: latestDataPoint.current,
-            maxCellVoltage: latestDataPoint.maxCellVoltage ?? null,
-            minCellVoltage: latestDataPoint.minCellVoltage ?? null,
-            averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
-          });
-        }
         
+        let alertsPromise;
+        if (socChanged || cellDiffChanged) {
+          alertsPromise = displayAlertsForDataDeviations(commonPayload);
+        }
+
         const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
 
         if (healthResult?.summary && healthResult.summary !== state.healthSummary) {
           dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
         }
         if (alertsResult?.alerts && JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
-          dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
+            dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
+            if (alertsResult.alerts.length > 1) {
+                // Don't wait for this one
+                generateAlertSummary({alerts: alertsResult.alerts, apiKey });
+            }
         }
         setPreviousDataPoint(latestDataPoint);
         
       } catch (error) {
-        console.error("Error running AI tasks:", error);
+        console.error("Error running AI insight tasks:", error);
         if (error instanceof Error && !/429|503/.test(error.message)) {
             toast({
                 variant: "destructive",
                 title: "Could not fetch AI insights",
-                description: "There was an issue with the AI service. Retrying shortly.",
+                description: "There was an issue with the AI service. " + error.message,
             });
         }
       } finally {
@@ -347,7 +368,7 @@ export const useBatteryData = () => {
       }
     };
     
-    aiTimeoutRef.current = setTimeout(runAiTasks, 2000);
+    aiTimeoutRef.current = setTimeout(runAiTasks, 1500);
 
     return () => {
         if(aiTimeoutRef.current) {
@@ -355,7 +376,7 @@ export const useBatteryData = () => {
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestDataPoint]);
+  }, [latestDataPoint, apiKey]);
 
 
   return {

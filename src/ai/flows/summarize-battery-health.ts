@@ -12,6 +12,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
+
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -22,6 +24,7 @@ const SummarizeBatteryHealthInputSchema = z.object({
   minCellVoltage: z.number().nullable().describe('The minimum cell voltage. Can be null if data is missing.'),
   averageCellVoltage: z.number().nullable().describe('The average cell voltage. Can be null if data is missing.'),
   cycleCount: z.number().describe('The number of charge cycles the battery has undergone.'),
+  apiKey: z.string().optional().describe('The Google AI API key.'),
 });
 export type SummarizeBatteryHealthInput = z.infer<typeof SummarizeBatteryHealthInputSchema>;
 
@@ -36,7 +39,16 @@ export async function summarizeBatteryHealth(input: SummarizeBatteryHealthInput)
 
 const summarizeBatteryHealthPrompt = ai.definePrompt({
   name: 'summarizeBatteryHealthPrompt',
-  input: {schema: SummarizeBatteryHealthInputSchema},
+  input: {schema: z.object({
+    batteryId: z.string(),
+    soc: z.number(),
+    voltage: z.number(),
+    current: z.number(),
+    maxCellVoltage: z.number().nullable(),
+    minCellVoltage: z.number().nullable(),
+    averageCellVoltage: z.number().nullable(),
+    cycleCount: z.number(),
+  })},
   output: {schema: SummarizeBatteryHealthOutputSchema},
   prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
 
@@ -64,7 +76,14 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
     outputSchema: SummarizeBatteryHealthOutputSchema,
   },
   async input => {
-    const {output} = await summarizeBatteryHealthPrompt(input);
+    const { apiKey, ...promptData } = input;
+    const model = googleAI({ apiKey });
+
+    const {output} = await ai.generate({
+        prompt: summarizeBatteryHealthPrompt,
+        model,
+        input: promptData,
+    });
     return output!;
   }
 );

@@ -12,11 +12,13 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
     z.string().describe('A list of active alerts for the battery.')
   ).describe('The alerts to be summarized.'),
+  apiKey: z.string().optional().describe('The Google AI API key.'),
 });
 export type GenerateAlertSummaryInput = z.infer<typeof GenerateAlertSummaryInputSchema>;
 
@@ -31,7 +33,7 @@ export async function generateAlertSummary(input: GenerateAlertSummaryInput): Pr
 
 const generateAlertSummaryPrompt = ai.definePrompt({
   name: 'generateAlertSummaryPrompt',
-  input: {schema: GenerateAlertSummaryInputSchema},
+  input: {schema: z.object({alerts: z.array(z.string())})},
   output: {schema: GenerateAlertSummaryOutputSchema},
   prompt: `You are an AI assistant specializing in summarizing battery alerts.
 
@@ -41,7 +43,8 @@ const generateAlertSummaryPrompt = ai.definePrompt({
   {{#each alerts}}- {{{this}}}
   {{/each}}
 
-  Summary:`,config: {
+  Summary:`,
+  config: {
     safetySettings: [
       {
         category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
@@ -66,7 +69,14 @@ const generateAlertSummaryFlow = ai.defineFlow(
     outputSchema: GenerateAlertSummaryOutputSchema,
   },
   async input => {
-    const {output} = await generateAlertSummaryPrompt(input);
+    const { apiKey, ...promptData } = input;
+    const model = googleAI({ apiKey });
+    
+    const {output} = await ai.generate({
+        prompt: generateAlertSummaryPrompt,
+        model,
+        input: promptData,
+    });
     return output!;
   }
 );

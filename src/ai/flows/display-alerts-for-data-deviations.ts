@@ -88,11 +88,15 @@ const displayAlertsFlow = ai.defineFlow(
 
     try {
         const {output} = await configuredAi.generate({
-            prompt: displayAlertsPrompt,
+            model: 'googleai/gemini-1.5-flash',
+            prompt: displayAlertsPrompt.prompt,
             input: promptData,
+            output: {
+              schema: DisplayAlertsOutputSchema,
+            },
         });
         logger.info('displayAlertsFlow successful for:', input.batteryId);
-        return output!;
+        return output;
     } catch (e: any) {
         logger.error('FATAL: Error in displayAlertsFlow generate call:', e.message, e.stack);
         throw e;

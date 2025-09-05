@@ -76,11 +76,15 @@ const generateAlertSummaryFlow = ai.defineFlow(
     
     try {
         const {output} = await configuredAi.generate({
-            prompt: generateAlertSummaryPrompt,
+            model: 'googleai/gemini-1.5-flash',
+            prompt: generateAlertSummaryPrompt.prompt,
             input: promptData,
+            output: {
+                schema: GenerateAlertSummaryOutputSchema,
+            },
         });
         logger.info('generateAlertSummaryFlow successful.');
-        return output!;
+        return output;
     } catch (e: any) {
         logger.error('FATAL: Error in generateAlertSummaryFlow generate call:', e.message, e.stack);
         throw e;

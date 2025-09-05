@@ -90,11 +90,15 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
 
     try {
         const {output} = await configuredAi.generate({
-            prompt: summarizeBatteryHealthPrompt,
+            model: 'googleai/gemini-1.5-flash',
+            prompt: summarizeBatteryHealthPrompt.prompt,
             input: promptData,
+            output: {
+              schema: SummarizeBatteryHealthOutputSchema,
+            },
         });
         logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
-        return output!;
+        return output;
     } catch (e: any) {
         logger.error('FATAL: Error in summarizeBatteryHealthFlow generate call:', e.message, e.stack);
         throw e;

@@ -217,6 +217,8 @@ export const useBatteryData = () => {
         if (dateFromFilename) {
             fileDateContext = dateFromFilename;
             logger.info(`Date parsed from filename: ${dateFromFilename.toISOString()}`);
+        } else {
+            logger.info(`No date in filename, using date picker context: ${dateContext.toISOString()}`);
         }
 
         const reader = new FileReader();
@@ -251,8 +253,6 @@ export const useBatteryData = () => {
             });
         }
         
-        // This was the bug: not resetting the state on failure.
-        dispatch({ type: 'RESET_UPLOAD_STATE' });
         return false;
     }
   }
@@ -291,7 +291,7 @@ export const useBatteryData = () => {
       processQueue(); 
     } else {
       // Failure, empty the rest of the queue and reset.
-      logger.warn('File processing failed, clearing remainder of upload queue.');
+      logger.warn('File processing failed, clearing remainder of upload queue and resetting state.');
       uploadQueue.current = [];
       dispatch({ type: 'RESET_UPLOAD_STATE' });
     }
@@ -362,7 +362,7 @@ export const useBatteryData = () => {
     if (!latestDataPoint || isAiRunning.current || !apiKey) {
       if (!latestDataPoint) logger.info("AI Insights: Skipping, no latest data point.");
       if (isAiRunning.current) logger.info("AI Insights: Skipping, AI is already running.");
-      if (!apiKey) logger.info("AI Insights: Skipping, no API key.");
+      if (!apiKey) logger.info("AI Insights: Skipping, no API key available yet.");
       return;
     }
     

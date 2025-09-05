@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useBatteryData } from "@/hooks/use-battery-data";
@@ -11,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Battery, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
+import PowerRecommendation from "@/components/power-recommendation";
 
 export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -118,6 +120,7 @@ export default function Dashboard() {
             <AlertsSection alerts={alerts} />
             {latestDataPoint && (
               <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                <PowerRecommendation latestDataPoint={latestDataPoint} />
                 <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
                 <MetricsSection data={latestDataPoint} />
               </div>

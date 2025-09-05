@@ -154,6 +154,7 @@ const reducer = (state: State, action: Action): State => {
 };
 
 const parseDateFromFilename = (filename: string): Date | null => {
+    // Matches YYYYMMDD-HHMMSS or YYYYMMDD_HHMMSS
     const regex1 = /(\d{4})(\d{2})(\d{2})[-_]?(\d{2})(\d{2})(\d{2})/;
     const match1 = filename.match(regex1);
     if (match1) {
@@ -161,6 +162,7 @@ const parseDateFromFilename = (filename: string): Date | null => {
         return new Date(year, month - 1, day, hour, minute, second);
     }
     
+    // Matches YYYY-MM-DD-HH-MM-SS or YYYY-MM-DD_HH-MM-SS
     const regex2 = /(\d{4})-(\d{2})-(\d{2})[-_]?(\d{2})-(\d{2})-(\d{2})/;
     const match2 = filename.match(regex2);
     if (match2) {
@@ -177,11 +179,11 @@ export const useBatteryData = () => {
   const { toast } = useToast();
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingQueue = useRef(false);
-  const isAiRunning = useRef(false);
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
   const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
   const [apiKey, setApiKey] = useState<string | null>(null);
 
+  // Effect to load API key from localStorage on mount
   useEffect(() => {
     logger.info("useBatteryData hook mounted. Checking for API Key.");
     const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
@@ -205,13 +207,12 @@ export const useBatteryData = () => {
     }
 
     try {
-        logger.info(`Processing file: ${file.name}`);
         const fileDateContext = parseDateFromFilename(file.name) || dateContext;
-        if (parseDateFromFilename(file.name)) {
-            logger.info(`Date parsed from filename: ${fileDateContext.toISOString()}`);
-        } else {
-            logger.info(`No date in filename, using date picker context: ${dateContext.toISOString()}`);
-        }
+        logger.info(`Processing file: ${file.name}`, { 
+            filenameDate: parseDateFromFilename(file.name)?.toISOString(),
+            contextDate: dateContext.toISOString(),
+            finalDate: fileDateContext.toISOString()
+        });
 
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -268,14 +269,12 @@ export const useBatteryData = () => {
 
     if (success) {
       uploadQueue.current.shift();
-      isProcessingQueue.current = false;
-      processQueue(); 
     } else {
       logger.warn('File processing failed, clearing remainder of upload queue and resetting state.');
       uploadQueue.current = [];
-      isProcessingQueue.current = false;
-      dispatch({ type: 'RESET_UPLOAD_STATE' });
     }
+    isProcessingQueue.current = false;
+    processQueue();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, apiKey]);
 
@@ -335,23 +334,22 @@ export const useBatteryData = () => {
   const currentBatteryRawData = useMemo(() => state.currentBatteryId ? state.rawBatteries[state.currentBatteryId] || [] : [], [state.currentBatteryId, state.rawBatteries]);
   const latestDataPoint = useMemo(() => currentBatteryData.length > 0 ? currentBatteryData[currentBatteryData.length - 1] : null, [currentBatteryData]);
 
+  // Effect for running AI insights when data changes
   useEffect(() => {
     if (aiTimeoutRef.current) {
         clearTimeout(aiTimeoutRef.current);
     }
 
-    if (!latestDataPoint || isAiRunning.current) {
-      if (!latestDataPoint) logger.info("AI Insights: Skipping, no latest data point.");
-      if (isAiRunning.current) logger.info("AI Insights: Skipping, AI is already running.");
+    if (!latestDataPoint) {
+      logger.info("AI Insights: Skipping, no latest data point.");
+      return;
+    }
+    if (!apiKey) {
+      logger.info("AI Insights: Skipping, no API key available yet.");
       return;
     }
     
     const runAiTasks = async () => {
-      if (!apiKey) {
-        logger.info("AI Insights: Skipping, no API key available yet.");
-        return;
-      }
-      isAiRunning.current = true;
       logger.info('AI Insights: Starting tasks for battery', latestDataPoint.batteryId);
       try {
         const commonPayload = {
@@ -410,7 +408,6 @@ export const useBatteryData = () => {
       } catch (error: any) {
         logger.error("AI Insights: Error running tasks:", error);
       } finally {
-        isAiRunning.current = false;
         logger.info('AI Insights: Tasks finished.');
       }
     };
@@ -422,6 +419,7 @@ export const useBatteryData = () => {
             clearTimeout(aiTimeoutRef.current);
         }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestDataPoint, apiKey, state.healthSummary, state.alerts, previousDataPoint]);
 
 

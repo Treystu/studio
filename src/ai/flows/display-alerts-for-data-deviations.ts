@@ -89,6 +89,10 @@ const displayAlertsFlow = ai.defineFlow(
             }
         });
 
+        if (!output) {
+            throw new Error('No output from AI');
+        }
+
         logger.info('displayAlertsFlow successful for:', input.batteryId);
         return output;
     } catch (e: any) {

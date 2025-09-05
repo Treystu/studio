@@ -106,6 +106,10 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
             },
         });
         
+        if (!output) {
+          throw new Error('No output from AI');
+        }
+
         logger.info('extractDataFromBMSImageFlow successful.');
         return output;
     } catch (e: any) {

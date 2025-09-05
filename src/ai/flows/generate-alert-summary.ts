@@ -75,6 +75,10 @@ const generateAlertSummaryFlow = ai.defineFlow(
               ],
             },
         });
+        
+        if (!output) {
+          throw new Error('No output from AI');
+        }
 
         logger.info('generateAlertSummaryFlow successful.');
         return output;

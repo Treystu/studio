@@ -82,6 +82,10 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
             }
         });
 
+        if (!output) {
+            throw new Error('No output from AI');
+        }
+
         logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
         return output;
     } catch (e: any) {

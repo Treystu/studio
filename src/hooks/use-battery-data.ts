@@ -286,7 +286,7 @@ export const useBatteryData = () => {
 
         const dataUris = dataUrisAndDates.map(item => item.dataUri);
         logger.log(`All files converted to data URIs. Calling 'extractDataFromBMSImages' AI flow...`);
-        const extractedData = await extractDataFromBMSImages({ photoDataUris: dataUris });
+        const extractedData = await extractDataFromBMSImages({ photoUrls: dataUris });
 
         dispatch({ type: 'UPDATE_UPLOAD_PROGRESS', payload: { processed: filesWithDates.length, total: filesWithDates.length } });
         

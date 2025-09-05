@@ -11,7 +11,6 @@ import {googleAI} from '@genkit-ai/googleai';
 // In production, the apiKey will be passed into each flow dynamically.
 const genkitOptions: GenkitOptions = {
   plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
-  logLevel: 'debug',
 };
 
 genkit(genkitOptions);

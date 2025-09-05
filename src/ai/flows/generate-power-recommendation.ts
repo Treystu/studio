@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -139,23 +138,7 @@ const generatePowerRecommendationPrompt = ai.definePrompt({
     output: { schema: GeneratePowerRecommendationOutputSchema },
     model: 'googleai/gemini-2.5-flash',
     tools: [getWeatherForecast, getSunriseSunsetTimes],
-    prompt: `You are an expert power management AI for an off-grid battery system.
-      Your goal is to provide a concise, actionable recommendation to the user.
-      
-      Analyze the current battery status, the weather forecast for the next 3 days, and the sunrise/sunset times.
-      
-      Based on the State of Charge (SOC), current power draw, and upcoming sun exposure (using the sun_hours field), provide a single, clear recommendation.
-      - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").
-      - If the SOC is low and cloudy weather is coming, recommend conserving power or running a generator.
-      - If the SOC is moderate, give a balanced recommendation.
-      - Frame the recommendation in a single, easy-to-understand sentence. Be friendly and encouraging.
-      
-      Current Battery Status:
-      - State of Charge (SOC): {{{soc}}}%
-      - Current Power: {{{power}}} kW ({{#if (gt power 0)}}Discharging{{else}}Charging{{/if}})
-      
-      The user is located in {{{location}}}. Use the available tools to get the upcoming weather and today's sunrise/sunset times.
-    `,
+    prompt: `You are an expert power management AI for an off-grid battery system.\n      Your goal is to provide a concise, actionable recommendation to the user.\n      \n      Analyze the current battery status, the weather forecast for the next 3 days, and the sunrise/sunset times.\n      \n      Based on the State of Charge (SOC), current power draw, and upcoming sun exposure (using the sun_hours field), provide a single, clear recommendation.\n      - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").\n      - If the SOC is low and cloudy weather is coming, recommend conserving power or running a generator.\n      - If the SOC is moderate, give a balanced recommendation.\n      - Frame the recommendation in a single, easy-to-understand sentence. Be friendly and encouraging.\n      \n      Current Battery Status:\n      - State of Charge (SOC): {{{soc}}}%\n      - Current Power: {{{power}}} kW ({{#if (gt power 0)}}Discharging{{else}}Charging{{/if}})\n      \n      The user is located in {{{location}}}. Use the available tools to get the upcoming weather and today's sunrise/sunset times.\n    `,
 });
 
 const generatePowerRecommendationFlow = ai.defineFlow(
@@ -174,4 +157,8 @@ const generatePowerRecommendationFlow = ai.defineFlow(
       throw new Error('No output from AI');
     }
 
-    logger.info('generatePowerRecommendationFlow successful for:', input.locatio
+    logger.info('generatePowerRecommendationFlow successful for:', input.location);
+
+    return output;
+  }
+);

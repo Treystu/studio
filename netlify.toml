@@ -1,2 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
 [functions]
-  max_body_size = 6291456
+  external_node_modules = ["@genkit-ai/googleai"]

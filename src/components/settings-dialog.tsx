@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { version } from '../../package.json';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -65,7 +66,10 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
             />
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <div className="text-xs text-muted-foreground">
+            Version {version}
+          </div>
           <Button onClick={handleSave}>Save and Reload</Button>
         </DialogFooter>
       </DialogContent>

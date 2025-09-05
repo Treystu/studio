@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { version } from '../../../package.json';
+import { version } from '../../package.json';
 import { useBatteryData } from "@/hooks/use-battery-data";
 import { logger } from "@/lib/logger";
 

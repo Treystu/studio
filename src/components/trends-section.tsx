@@ -39,7 +39,9 @@ export default function TrendsSection({ data }: TrendsSectionProps) {
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
           <XAxis 
             dataKey="timestamp" 
-            tickFormatter={(time) => format(new Date(time), 'HH:mm')}
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={(time) => format(new Date(time), 'MMM d, HH:mm')}
             stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
@@ -66,7 +68,7 @@ export default function TrendsSection({ data }: TrendsSectionProps) {
       <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
         <CardHeader>
           <CardTitle className="text-lg">Historical Trends</CardTitle>
-          <CardDescription>Data is averaged hourly to smooth trend lines.</CardDescription>
+          <CardDescription>Data points are grouped and averaged by the hour of upload.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

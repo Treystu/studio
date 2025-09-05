@@ -90,11 +90,13 @@ const reducer = (state: State, action: Action): State => {
     }
     case 'SET_ALERTS':
       return { ...state, alerts: action.payload };
-    case 'CLEAR_BATTERY_DATA':
+    case 'CLEAR_BATTERY_DATA': {
+      if (!action.payload) return state;
       const newBatteries = { ...state.batteries };
       delete newBatteries[action.payload];
       const newCurrentBatteryId = Object.keys(newBatteries)[0] || null;
       return { ...state, batteries: newBatteries, currentBatteryId: newCurrentBatteryId, alerts: [] };
+    }
     default:
       return state;
   }

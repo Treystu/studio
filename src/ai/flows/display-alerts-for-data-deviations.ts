@@ -42,6 +42,7 @@ export async function displayAlertsForDataDeviations(
 
 const displayAlertsPrompt = ai.definePrompt({
     name: 'displayAlertsPrompt',
+    model: 'gemini-pro',
     input: {schema: z.object({
       batteryId: z.string(),
       soc: z.number(),

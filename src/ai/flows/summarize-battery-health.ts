@@ -39,6 +39,7 @@ export async function summarizeBatteryHealth(input: SummarizeBatteryHealthInput)
 
 const summarizeBatteryHealthPrompt = ai.definePrompt({
     name: 'summarizeBatteryHealthPrompt',
+    model: 'gemini-pro',
     input: {schema: z.object({
       batteryId: z.string(),
       soc: z.number(),

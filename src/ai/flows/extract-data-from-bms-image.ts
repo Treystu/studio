@@ -48,6 +48,7 @@ export async function extractDataFromBMSImage(input: ExtractDataFromBMSImageInpu
 
 const prompt = ai.definePrompt({
     name: 'extractDataFromBMSImagePrompt',
+    model: 'gemini-pro-vision',
     input: {schema: z.object({ photoDataUri: z.string() })},
     output: {schema: ExtractDataFromBMSImageOutputSchema},
     prompt: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.

@@ -34,6 +34,7 @@ export async function generateAlertSummary(input: GenerateAlertSummaryInput): Pr
 
 const generateAlertSummaryPrompt = ai.definePrompt({
     name: 'generateAlertSummaryPrompt',
+    model: 'gemini-pro',
     input: {schema: z.object({alerts: z.array(z.string())})},
     output: {schema: GenerateAlertSummaryOutputSchema},
     prompt: `You are an AI assistant specializing in summarizing battery alerts.

@@ -61,6 +61,7 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in extractDataFromBMSImageFlow');
       throw new Error('API key is required.');
     }
+    logger.info(`extractDataFromBMSImageFlow received API Key: ${apiKey.substring(0, 5)}...`);
     
     try {
         const localAi = genkit({

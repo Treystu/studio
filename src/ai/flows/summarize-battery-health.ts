@@ -52,6 +52,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in summarizeBatteryHealthFlow');
       throw new Error('API key is required.');
     }
+    logger.info(`summarizeBatteryHealthFlow received API Key: ${apiKey.substring(0, 5)}...`);
     
     try {
         const localAi = genkit({

@@ -45,7 +45,7 @@ const getWeatherForecast = ai.defineTool(
     outputSchema: weatherForecastSchema,
   },
   async ({ location }) => {
-    console.log(`Getting weather forecast for ${location}`);
+    logger.info(`TOOL: getWeatherForecast invoked for ${location}`);
     // In a real app, you would call a weather API here.
     // For this example, we'll return a mock forecast.
     const today = new Date();
@@ -104,7 +104,7 @@ const getSunriseSunsetTimes = ai.defineTool(
         outputSchema: sunTimesSchema,
     },
     async ({ location }) => {
-        logger.info(`Getting sunrise/sunset for ${location}`);
+        logger.info(`TOOL: getSunriseSunsetTimes invoked for ${location}`);
         // In a real app, you would call a real API.
         // For this example, we return mock data.
         if (location.toLowerCase().includes('pahoa')) {
@@ -148,6 +148,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in generatePowerRecommendationFlow');
       throw new APIError(400, 'API key is required.');
     }
+    logger.info(`generatePowerRecommendationFlow received API Key: ${apiKey.substring(0, 5)}...`);
     
     try {
       const localAi = genkit({

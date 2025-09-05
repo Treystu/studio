@@ -4,7 +4,7 @@ import {config} from 'dotenv';
 config();
 
 import {genkit, type GenkitOptions} from 'genkit';
-import {googleAI}s from '@genkit-ai/googleai';
+import {googleAI} from '@genkit-ai/googleai';
 import {defineFlow} from 'genkit';
 
 console.log(

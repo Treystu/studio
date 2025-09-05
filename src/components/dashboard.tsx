@@ -11,20 +11,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Battery } from "lucide-react";
 import { useState, useEffect } from "react";
-import { differenceInHours, formatDistanceToNow, isSameDay } from "date-fns";
+import { differenceInHours, formatDistanceToNow } from "date-fns";
 import PowerRecommendation from "@/components/power-recommendation";
 import FreshInsights from "./fresh-insights";
 
 export default function Dashboard() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-
-  useEffect(() => {
-    // Initialize date on client to avoid hydration mismatch
-    if (typeof window !== 'undefined') {
-      setSelectedDate(new Date());
-    }
-  }, []);
-  
   const {
     batteries,
     currentBatteryId,
@@ -45,9 +36,7 @@ export default function Dashboard() {
   } = useBatteryData();
 
   const handleFileUpload = (files: File[]) => {
-    if (selectedDate) {
-      processUploadedFiles(files, selectedDate);
-    }
+    processUploadedFiles(files);
   }
 
   const hasData = Object.keys(batteries).length > 0 && currentBatteryId && batteries[currentBatteryId]?.length > 0;
@@ -91,8 +80,8 @@ export default function Dashboard() {
               <Card className="w-full max-w-md text-center shadow-lg animate-fade-in">
                 <CardHeader>
                   <CardTitle className="text-2xl font-bold">No Data Available</CardTitle>
-                  <CardDescription>Upload screenshots for battery '{currentBatteryId}' using the date picker for context.</CardDescription>
-                </Header>
+                  <CardDescription>Upload screenshots for battery '{currentBatteryId}'. Dates are extracted automatically from filenames.</CardDescription>
+                </CardHeader>
                 <CardContent>
                   <Battery className="mx-auto h-24 w-24 text-primary mb-4" />
                 </CardContent>
@@ -144,8 +133,6 @@ export default function Dashboard() {
         currentBatteryId={currentBatteryId}
         onBatteryChange={setCurrentBatteryId}
         onFileUpload={handleFileUpload}
-        selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
         onClearData={clearCurrentBatteryData}
         isLoading={isLoading}
         hasData={!!currentBatteryId}
@@ -159,4 +146,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

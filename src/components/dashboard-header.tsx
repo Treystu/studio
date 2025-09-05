@@ -1,17 +1,14 @@
+
 "use client";
 
 import React, { useRef, useState } from 'react';
-import { Battery, Calendar as CalendarIcon, Loader2, Settings, Trash2, Upload } from 'lucide-react';
+import { Battery, Loader2, Settings, Trash2, Upload } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 import SettingsDialog from './settings-dialog';
 import { version } from '../../package.json';
 
@@ -20,8 +17,6 @@ interface DashboardHeaderProps {
   currentBatteryId: string | null;
   onBatteryChange: (id: string) => void;
   onFileUpload: (files: File[]) => void;
-  selectedDate: Date | undefined;
-  onDateChange: (date: Date | undefined) => void;
   onClearData: (backup: boolean) => void;
   isLoading: boolean;
   hasData: boolean;
@@ -35,8 +30,6 @@ export default function DashboardHeader({
   currentBatteryId,
   onBatteryChange,
   onFileUpload,
-  selectedDate,
-  onDateChange,
   onClearData,
   isLoading,
   hasData,
@@ -88,30 +81,6 @@ export default function DashboardHeader({
             </Select>
           )}
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                size="sm"
-                className={cn(
-                  "w-[200px] justify-start text-left font-normal h-9",
-                  !selectedDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={onDateChange}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-
           <input
             type="file"
             ref={fileInputRef}
@@ -120,7 +89,7 @@ export default function DashboardHeader({
             multiple
             accept="image/*"
           />
-          <Button onClick={handleUploadClick} disabled={isLoading || !selectedDate} size="sm" className="h-9">
+          <Button onClick={handleUploadClick} disabled={isLoading} size="sm" className="h-9">
             {isLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (

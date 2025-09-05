@@ -11,6 +11,40 @@ import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
 import { differenceInHours } from 'date-fns';
 
+// Helper to parse dates from filenames
+const parseDateFromFilename = (filename: string): Date | null => {
+    // Matches formats like: YYYYMMDD, YYYY-MM-DD, YYYY_MM_DD
+    const ymdRegex = /(\d{4})[-_]?(\d{2})[-_]?(\d{2})/;
+    const ymdMatch = filename.match(ymdRegex);
+  
+    if (ymdMatch) {
+      const year = parseInt(ymdMatch[1], 10);
+      const month = parseInt(ymdMatch[2], 10) - 1; // Month is 0-indexed
+      const day = parseInt(ymdMatch[3], 10);
+      
+      // Basic validation for year, month, day
+      if (year > 2000 && year < 2100 && month >= 0 && month < 12 && day > 0 && day <= 31) {
+        const date = new Date(year, month, day);
+
+        // Check for time: HHMMSS or HH-MM-SS or HH_MM_SS
+        const hmsRegex = /(\d{2})[-_:]?(\d{2})[-_:]?(\d{2})/;
+        const hmsMatch = filename.match(hmsRegex);
+
+        if (hmsMatch) {
+            const hours = parseInt(hmsMatch[1], 10);
+            const minutes = parseInt(hmsMatch[2], 10);
+            const seconds = parseInt(hmsMatch[3], 10);
+            if(hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60 && seconds >= 0 && seconds < 60) {
+                 date.setHours(hours, minutes, seconds);
+            }
+        }
+        return date;
+      }
+    }
+  
+    return null;
+  };
+
 // == STATE & REDUCER == //
 type State = {
   batteries: BatteryCollection;
@@ -214,32 +248,65 @@ export const useBatteryData = () => {
   }, [state.currentBatteryId, state.batteries, toast]);
 
 
-  const processUploadedFiles = useCallback(async (files: File[], dateContext: Date) => {
-    dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
+  const processUploadedFiles = useCallback(async (files: File[]) => {
+    const filesWithDates = files.map(file => ({ file, date: parseDateFromFilename(file.name) }))
+        .filter(item => item.date !== null) as { file: File; date: Date }[];
+
+    const skippedFiles = files.length - filesWithDates.length;
+    if (skippedFiles > 0) {
+        toast({
+            variant: 'default',
+            title: 'Some Files Skipped',
+            description: `${skippedFiles} file(s) were skipped because a date could not be extracted from the filename.`
+        })
+    }
+
+    if (filesWithDates.length === 0) {
+        return;
+    }
+
+    dispatch({ type: 'START_LOADING', payload: { totalFiles: filesWithDates.length } });
     
     try {
-        const dataUris = await Promise.all(
-            files.map(file => {
-                return new Promise<string>((resolve, reject) => {
+        const dataUrisAndDates = await Promise.all(
+            filesWithDates.map(item => {
+                return new Promise<{ dataUri: string, date: Date }>((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onload = e => resolve(e.target?.result as string);
+                    reader.onload = e => resolve({ dataUri: e.target?.result as string, date: item.date });
                     reader.onerror = reject;
-                    reader.readAsDataURL(file);
+                    reader.readAsDataURL(item.file);
                 });
             })
         );
-        dispatch({ type: 'UPDATE_UPLOAD_PROGRESS', payload: { processed: files.length / 2, total: files.length } });
+        dispatch({ type: 'UPDATE_UPLOAD_PROGRESS', payload: { processed: filesWithDates.length / 2, total: filesWithDates.length } });
 
+        const dataUris = dataUrisAndDates.map(item => item.dataUri);
         logger.log(`All files converted to data URIs. Calling 'extractDataFromBMSImages' AI flow...`);
         const extractedData = await extractDataFromBMSImages({ photoDataUris: dataUris });
 
-        dispatch({ type: 'UPDATE_UPLOAD_PROGRESS', payload: { processed: files.length, total: files.length } });
+        dispatch({ type: 'UPDATE_UPLOAD_PROGRESS', payload: { processed: filesWithDates.length, total: filesWithDates.length } });
         
         const isFirstUpload = Object.keys(state.batteries).length === 0;
-        dispatch({ type: 'ADD_DATA_BATCH', payload: { data: extractedData.results, dateContext, isFirstUpload } });
-        logger.log(`Successfully processed batch of ${files.length} files.`);
+
+        // Group extracted data by the original date context
+        const groupedByDate = extractedData.results.reduce((acc, result, index) => {
+            const dateContext = dataUrisAndDates[index].date;
+            const dateKey = dateContext.toISOString();
+            if (!acc[dateKey]) {
+                acc[dateKey] = [];
+            }
+            acc[dateKey].push(result);
+            return acc;
+        }, {} as Record<string, BatteryDataPoint[]>);
+
+        // Dispatch a batch for each date group
+        for (const dateKey in groupedByDate) {
+            dispatch({ type: 'ADD_DATA_BATCH', payload: { data: groupedByDate[dateKey], dateContext: new Date(dateKey), isFirstUpload } });
+        }
         
-        toast({ title: 'Upload Complete', description: `${files.length} file(s) processed successfully.` });
+        logger.log(`Successfully processed batch of ${filesWithDates.length} files.`);
+        
+        toast({ title: 'Upload Complete', description: `${filesWithDates.length} file(s) processed successfully.` });
 
     } catch (error: any) {
         logger.error(`Error processing files:`, error);
@@ -300,4 +367,3 @@ export const useBatteryData = () => {
     getAiInsights,
   };
 };
-

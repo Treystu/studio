@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -33,29 +34,6 @@ export async function generateAlertSummary(input: GenerateAlertSummaryInput): Pr
   return generateAlertSummaryFlow(input);
 }
 
-const generateAlertSummaryPrompt = ai.definePrompt({
-  name: 'generateAlertSummaryPrompt',
-  input: {schema: z.object({alerts: z.array(z.string())})},
-  output: {schema: GenerateAlertSummaryOutputSchema},
-  prompt: `You are an AI assistant specializing in summarizing battery alerts.
-
-  Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
-
-  Alerts:
-  {{#each alerts}}- {{{this}}}
-  {{/each}}
-
-  Summary:`,
-  config: {
-    safetySettings: [
-      {
-        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-        threshold: 'BLOCK_ONLY_HIGH',
-      },
-    ],
-  },
-});
-
 const generateAlertSummaryFlow = ai.defineFlow(
   {
     name: 'generateAlertSummaryFlow',
@@ -74,17 +52,33 @@ const generateAlertSummaryFlow = ai.defineFlow(
         plugins: [googleAI({apiKey})],
     });
     
-    try {
-        const {output} = await configuredAi.generate({
-            model: 'googleai/gemini-1.5-flash',
-            prompt: generateAlertSummaryPrompt.prompt,
-            input: promptData,
-            output: {
-                schema: GenerateAlertSummaryOutputSchema,
+    const generateAlertSummaryPrompt = configuredAi.definePrompt({
+        name: 'generateAlertSummaryPrompt',
+        input: {schema: z.object({alerts: z.array(z.string())})},
+        output: {schema: GenerateAlertSummaryOutputSchema},
+        prompt: `You are an AI assistant specializing in summarizing battery alerts.
+      
+          Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
+      
+          Alerts:
+          {{#each alerts}}- {{{this}}}
+          {{/each}}
+      
+          Summary:`,
+        config: {
+          safetySettings: [
+            {
+              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+              threshold: 'BLOCK_ONLY_HIGH',
             },
-        });
+          ],
+        },
+      });
+
+    try {
+        const {output} = await generateAlertSummaryPrompt(promptData);
         logger.info('generateAlertSummaryFlow successful.');
-        return output;
+        return output!;
     } catch (e: any) {
         logger.error('FATAL: Error in generateAlertSummaryFlow generate call:', e.message, e.stack);
         throw e;

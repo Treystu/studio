@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -38,38 +39,6 @@ export async function summarizeBatteryHealth(input: SummarizeBatteryHealthInput)
   return summarizeBatteryHealthFlow(input);
 }
 
-const summarizeBatteryHealthPrompt = ai.definePrompt({
-  name: 'summarizeBatteryHealthPrompt',
-  input: {schema: z.object({
-    batteryId: z.string(),
-    soc: z.number(),
-    voltage: z.number(),
-    current: z.number(),
-    maxCellVoltage: z.number().nullable(),
-    minCellVoltage: z.number().nullable(),
-    averageCellVoltage: z.number().nullable(),
-    cycleCount: z.number(),
-  })},
-  output: {schema: SummarizeBatteryHealthOutputSchema},
-  prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
-
-  Based on the following battery data, provide a concise summary of the battery's current health status. Include key metrics such as SOC, voltage, and any significant deviations.
-  
-  If maxCellVoltage, minCellVoltage or averageCellVoltage are null, do not mention them in the summary or consider them as 0. Acknowledge that this data might be missing.
-
-  Battery ID: {{{batteryId}}}
-  SOC: {{{soc}}}
-  Voltage: {{{voltage}}}
-  Current: {{{current}}}
-  Max Cell Voltage: {{{maxCellVoltage}}}
-  Min Cell Voltage: {{{minCellVoltage}}}
-  Average Cell Voltage: {{{averageCellVoltage}}}
-  Cycle Count: {{{cycleCount}}}
-
-  Provide a summary that is easy to understand for a non-technical user.
-  `,
-});
-
 const summarizeBatteryHealthFlow = ai.defineFlow(
   {
     name: 'summarizeBatteryHealthFlow',
@@ -88,17 +57,42 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
         plugins: [googleAI({apiKey})],
     });
 
+    const summarizeBatteryHealthPrompt = configuredAi.definePrompt({
+        name: 'summarizeBatteryHealthPrompt',
+        input: {schema: z.object({
+          batteryId: z.string(),
+          soc: z.number(),
+          voltage: z.number(),
+          current: z.number(),
+          maxCellVoltage: z.number().nullable(),
+          minCellVoltage: z.number().nullable(),
+          averageCellVoltage: z.number().nullable(),
+          cycleCount: z.number(),
+        })},
+        output: {schema: SummarizeBatteryHealthOutputSchema},
+        prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
+      
+          Based on the following battery data, provide a concise summary of the battery's current health status. Include key metrics such as SOC, voltage, and any significant deviations.
+          
+          If maxCellVoltage, minCellVoltage or averageCellVoltage are null, do not mention them in the summary or consider them as 0. Acknowledge that this data might be missing.
+      
+          Battery ID: {{{batteryId}}}
+          SOC: {{{soc}}}
+          Voltage: {{{voltage}}}
+          Current: {{{current}}}
+          Max Cell Voltage: {{{maxCellVoltage}}}
+          Min Cell Voltage: {{{minCellVoltage}}}
+          Average Cell Voltage: {{{averageCellVoltage}}}
+          Cycle Count: {{{cycleCount}}}
+      
+          Provide a summary that is easy to understand for a non-technical user.
+          `,
+      });
+
     try {
-        const {output} = await configuredAi.generate({
-            model: 'googleai/gemini-1.5-flash',
-            prompt: summarizeBatteryHealthPrompt.prompt,
-            input: promptData,
-            output: {
-              schema: SummarizeBatteryHealthOutputSchema,
-            },
-        });
+        const {output} = await summarizeBatteryHealthPrompt(promptData);
         logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
-        return output;
+        return output!;
     } catch (e: any) {
         logger.error('FATAL: Error in summarizeBatteryHealthFlow generate call:', e.message, e.stack);
         throw e;

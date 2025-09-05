@@ -32,7 +32,7 @@ const generateAlertSummaryPrompt = ai.definePrompt({
     name: 'generateAlertSummaryPrompt',
     input: { schema: GenerateAlertSummaryInputSchema },
     output: { schema: GenerateAlertSummaryOutputSchema },
-    model: 'gemini-2.5-flash',
+    model: 'googleai/gemini-2.5-flash',
     prompt: `You are an AI assistant specializing in summarizing battery alerts.
   
       Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.

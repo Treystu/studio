@@ -46,7 +46,7 @@ const insightsPrompt = ai.definePrompt({
   input: {schema: GenerateDashboardInsightsInputSchema},
   output: {schema: GenerateDashboardInsightsOutputSchema},
   tools: [getWeatherForecast],
-  model: 'gemini-2.5-flash',
+  model: 'googleai/gemini-2.5-flash',
   prompt: `You are an expert power management AI for an off-grid battery system. Your goal is to provide actionable, forward-looking insights based on the battery's current state and the weather forecast.
 
 Analyze the user's situation based on the provided data and the weather forecast obtained from the available tool. Generate exactly four insights to answer the following key questions. Be insightful and look ahead 24-48 hours.
@@ -58,7 +58,7 @@ Analyze the user's situation based on the provided data and the weather forecast
 
 2.  **Was solar charge comparable to expected?**
     *   (This is a trick question, as we don't have past solar data). Frame the answer for the *upcoming* day.
-    *   Based on tomorrow's weather forecast (sun_hours), set an expectation. For example: "With 8 sun hours forecasted, expect a strong charge tomorrow." or "With only 3 sun hours expected, solar input will be limited."
+    *   Based on tomorrow's weather forecast (sun_hours), set an expectation. For example: "With 8 sun hours forecasted, expect a strong charge tomorrow." or "With only 3 sun hours expected, a limited charge is likely."
 
 3.  **Was power consumption comparable to expected?**
     *   (This is also a trick question about the past). Frame the answer based on the *current* power draw.

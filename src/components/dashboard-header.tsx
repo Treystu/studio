@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from 'react';
-import { Battery, Calendar as CalendarIcon, Loader2, Trash2, Upload } from 'lucide-react';
+import { Battery, Calendar as CalendarIcon, Loader2, Settings, Trash2, Upload } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import SettingsDialog from './settings-dialog';
 
 interface DashboardHeaderProps {
   batteryIds: string[];
@@ -45,6 +46,7 @@ export default function DashboardHeader({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isClearDialogOpen, setClearDialogOpen] = useState(false);
   const [backupData, setBackupData] = useState(false);
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -131,6 +133,10 @@ export default function DashboardHeader({
                   <span className="sr-only">Start Fresh</span>
               </Button>
           )}
+          <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)} className="h-9 w-9">
+            <Settings className="h-4 w-4" />
+            <span className="sr-only">Settings</span>
+          </Button>
         </div>
       </div>
       {uploadProgress !== null && (
@@ -163,6 +169,7 @@ export default function DashboardHeader({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <SettingsDialog open={isSettingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 }

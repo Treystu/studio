@@ -190,6 +190,8 @@ export const useBatteryData = () => {
     } catch (error) {
         console.error('Error processing file:', file.name, error);
 
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+
         if (error instanceof Error && /429|quota/.test(error.message)) {
             toast({
                 variant: 'destructive',
@@ -202,7 +204,7 @@ export const useBatteryData = () => {
         toast({
             variant: 'destructive',
             title: `Error processing ${file.name}`,
-            description: 'Could not extract data from the image.',
+            description: 'Could not extract data from the image. ' + errorMessage,
         });
         return true; 
     }
@@ -210,10 +212,10 @@ export const useBatteryData = () => {
 
   const processQueue = useCallback(async () => {
     if (isProcessingQueue.current || uploadQueue.current.length === 0) {
-      if (uploadQueue.current.length === 0 && state.totalFileCount > 0) {
+      if (uploadQueue.current.length === 0 && state.totalFileCount > 0 && state.processedFileCount === state.totalFileCount) {
         setTimeout(() => {
             dispatch({ type: 'RESET_UPLOAD_STATE' });
-            if (state.processedFileCount === state.totalFileCount && state.totalFileCount > 0) {
+            if (state.totalFileCount > 0) {
               toast({ title: 'Upload Complete', description: `${state.totalFileCount} file(s) processed.` });
             }
         }, 1000);
@@ -229,14 +231,10 @@ export const useBatteryData = () => {
     const success = await processFile(file, dateContext, isFirstUpload);
 
     if (success) {
-      dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
       uploadQueue.current.shift();
-      if (uploadQueue.current.length > 0) {
-        processQueue();
-      } else {
-        isProcessingQueue.current = false;
-        processQueue(); // Call again to trigger completion logic
-      }
+      dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
+      isProcessingQueue.current = false;
+      processQueue(); 
     } else {
       isProcessingQueue.current = false;
       setTimeout(processQueue, 60000); 
@@ -245,7 +243,7 @@ export const useBatteryData = () => {
 
   const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
     dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
-    uploadQueue.current = files.map(file => ({ file, dateContext }));
+    uploadQueue.current.push(...files.map(file => ({ file, dateContext })));
     
     if (!isProcessingQueue.current) {
         processQueue();

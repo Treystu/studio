@@ -155,7 +155,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
       });
 
       const { output } = await localAi.generate({
-        model: 'gemini-pro',
+        model: 'googleai/gemini-pro',
         tools: [getWeatherForecast, getSunriseSunsetTimes],
         prompt: `You are an expert power management AI for an off-grid battery system.
           Your goal is to provide a concise, actionable recommendation to the user.

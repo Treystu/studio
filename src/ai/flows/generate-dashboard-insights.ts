@@ -46,7 +46,7 @@ const insightsPrompt = ai.definePrompt({
   input: {schema: GenerateDashboardInsightsInputSchema},
   output: {schema: GenerateDashboardInsightsOutputSchema},
   tools: [getWeatherForecast],
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.5-flash',
   prompt: `You are an expert power management AI for an off-grid battery system. Your goal is to provide actionable, forward-looking insights based on the battery's current state and the weather forecast.
 
 Analyze the user's situation based on the provided data and the weather forecast obtained from the available tool. Generate exactly four insights to answer the following key questions. Be insightful and look ahead 24-48 hours.

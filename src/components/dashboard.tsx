@@ -8,8 +8,9 @@ import TrendsSection from "@/components/trends-section";
 import AlertsSection from "@/components/alerts-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Battery } from "lucide-react";
+import { Battery, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
+import { formatDistanceToNow } from "date-fns";
 
 export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -47,6 +48,9 @@ export default function Dashboard() {
   const hasData = Object.keys(batteries).length > 0 && currentBatteryId && batteries[currentBatteryId]?.length > 0;
   
   const isInitialLoading = isLoading && !hasData;
+
+  const isDataFresh = latestDataPoint ? new Date().getTime() - new Date(latestDataPoint.timestamp).getTime() < 4 * 60 * 60 * 1000 : false;
+  const timeAgo = latestDataPoint ? formatDistanceToNow(new Date(latestDataPoint.timestamp), { addSuffix: true }) : '';
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -98,14 +102,30 @@ export default function Dashboard() {
               </div>
         ) : (
           <>
-            <AlertsSection alerts={alerts} />
-            {latestDataPoint && (
-              <div className="grid grid-cols-1 gap-8 animate-fade-in">
-                <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
-                <MetricsSection data={latestDataPoint} />
-                <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
-              </div>
+            {isDataFresh ? (
+              <>
+                <AlertsSection alerts={alerts} />
+                {latestDataPoint && (
+                  <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                    <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
+                    <MetricsSection data={latestDataPoint} />
+                  </div>
+                )}
+              </>
+            ) : (
+                <Card className="animate-fade-in">
+                    <CardContent className="flex items-center gap-3 p-4">
+                        <AlertCircle className="h-5 w-5 text-amber-500" />
+                        <div>
+                            <p className="font-semibold">Live metrics are unavailable</p>
+                            <p className="text-sm text-muted-foreground">
+                                Last reading was {timeAgo}. Only historical data is being shown.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
             )}
+             <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
           </>
         )}
       </main>

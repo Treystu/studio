@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import SettingsDialog from './settings-dialog';
-import { version } from '../../../package.json';
+import { version } from '../../package.json';
 
 interface DashboardHeaderProps {
   batteryIds: string[];

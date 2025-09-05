@@ -86,7 +86,11 @@ const initialState: State = {
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload).substring(0, 300) + '...' : '');
+  if ('payload' in action) {
+    logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload).substring(0, 300) + '...' : '');
+  } else {
+    logger.log(`ACTION: ${action.type}`);
+  }
   switch (action.type) {
     case 'START_LOADING':
       return { ...state, isLoading: true, totalFileCount: action.payload?.totalFiles ?? state.totalFileCount, processedFileCount: 0, uploadProgress: 0 };

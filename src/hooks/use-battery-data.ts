@@ -161,71 +161,98 @@ export const useBatteryData = () => {
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isAiRunning = useRef(false);
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
+  const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
+  const isProcessingQueue = useRef(false);
 
 
-  const processUploadedFiles = useCallback(async (files: File[], dateContext: Date) => {
-    const totalFiles = files.length;
-    dispatch({ type: 'START_LOADING', payload: { totalFiles } });
-    let successfulUploads = 0;
+  const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
+    try {
+        let fileDateContext = dateContext;
+        const dateFromFilename = parseDateFromFilename(file.name);
+        if (dateFromFilename) {
+            fileDateContext = dateFromFilename;
+        }
 
-    for (const [index, file] of files.entries()) {
-      const baseProgress = (index / totalFiles) * 100;
-      let fileDateContext = dateContext;
-
-      const dateFromFilename = parseDateFromFilename(file.name);
-      if (dateFromFilename) {
-          fileDateContext = dateFromFilename;
-      }
-      
-      try {
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
-          reader.onload = e => resolve(e.target?.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
+            reader.onload = e => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
         });
-        
-        const progressAfterRead = baseProgress + (1 / totalFiles) * 100 * 0.3; // 30% of file progress
-        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterRead, processed: index } });
+
+        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: (state.processedFileCount / state.totalFileCount) * 100 + (1 / state.totalFileCount) * 30, processed: state.processedFileCount } });
 
         const extractedData = await extractDataFromBMSImage({ photoDataUri: dataUri });
-        
-        const progressAfterExtract = baseProgress + (1 / totalFiles) * 100 * 0.9; // 90% of file progress
-        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterExtract, processed: index } });
-        
-        const isFirstUpload = state.currentBatteryId === null && index === 0;
-        dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
-        successfulUploads++;
 
-      } catch (error) {
+        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: (state.processedFileCount / state.totalFileCount) * 100 + (1 / state.totalFileCount) * 90, processed: state.processedFileCount } });
+
+        dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
+        return true;
+    } catch (error) {
         console.error('Error processing file:', file.name, error);
-        let description = 'Could not extract data from the image.';
+
         if (error instanceof Error && /429|quota/.test(error.message)) {
-            description = 'Daily AI processing limit reached. Please try again later.';
+            toast({
+                variant: 'destructive',
+                title: 'Rate limit reached',
+                description: `Pausing uploads. Will retry in 1 minute.`,
+            });
+            return false;
         }
+
         toast({
-          variant: 'destructive',
-          title: `Error processing ${file.name}`,
-          description,
+            variant: 'destructive',
+            title: `Error processing ${file.name}`,
+            description: 'Could not extract data from the image.',
         });
-      } finally {
-          const finalProgress = ((index + 1) / totalFiles) * 100;
-          dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: finalProgress, processed: index + 1 } });
-      }
+        // In case of non-rate-limiting error, we still count it as "processed" to not get stuck.
+        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: ((state.processedFileCount + 1) / state.totalFileCount) * 100, processed: state.processedFileCount + 1 } });
+        return true; // Return true to move to the next file
+    }
+  }
+
+  const processQueue = useCallback(async () => {
+    if (isProcessingQueue.current || uploadQueue.current.length === 0) {
+      isProcessingQueue.current = false;
+      return;
     }
 
-    setTimeout(() => {
-      dispatch({ type: 'RESET_UPLOAD_STATE' });
-      
-      if (successfulUploads > 0) {
-          toast({
-              title: 'Upload Complete',
-              description: `${successfulUploads}/${totalFiles} file(s) processed successfully.`,
-            });
-      }
-    }, 1000);
+    isProcessingQueue.current = true;
+    const { file, dateContext } = uploadQueue.current[0];
+    const isFirstUpload = state.currentBatteryId === null && state.processedFileCount === 0;
 
-  }, [toast, state.currentBatteryId]);
+    const success = await processFile(file, dateContext, isFirstUpload);
+
+    if (success) {
+      dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: ((state.processedFileCount + 1) / state.totalFileCount) * 100, processed: state.processedFileCount + 1 } });
+      uploadQueue.current.shift();
+      if (uploadQueue.current.length > 0) {
+        // Continue processing immediately
+        processQueue();
+      } else {
+        // Queue is empty, finish up
+        setTimeout(() => {
+            dispatch({ type: 'RESET_UPLOAD_STATE' });
+            toast({ title: 'Upload Complete', description: `${state.totalFileCount} file(s) processed.` });
+        }, 1000);
+        isProcessingQueue.current = false;
+      }
+    } else {
+      // It was a rate limit error, wait and retry
+      isProcessingQueue.current = false;
+      setTimeout(processQueue, 60000); // Wait for 1 minute
+    }
+  }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, toast]);
+
+  const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
+    dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
+    uploadQueue.current = files.map(file => ({ file, dateContext }));
+    
+    if (!isProcessingQueue.current) {
+        processQueue();
+    }
+  }, [processQueue]);
+
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
     dispatch({ type: 'SET_CURRENT_BATTERY', payload: batteryId });

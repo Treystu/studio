@@ -102,17 +102,7 @@ export default function Dashboard() {
               </div>
         ) : (
           <>
-            {isDataFresh ? (
-              <>
-                <AlertsSection alerts={alerts} />
-                {latestDataPoint && (
-                  <div className="grid grid-cols-1 gap-8 animate-fade-in">
-                    <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
-                    <MetricsSection data={latestDataPoint} />
-                  </div>
-                )}
-              </>
-            ) : (
+            {!isDataFresh && (
                 <Card className="animate-fade-in">
                     <CardContent className="flex items-center gap-3 p-4">
                         <AlertCircle className="h-5 w-5 text-amber-500" />
@@ -124,6 +114,13 @@ export default function Dashboard() {
                         </div>
                     </CardContent>
                 </Card>
+            )}
+            <AlertsSection alerts={alerts} />
+            {latestDataPoint && (
+              <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
+                <MetricsSection data={latestDataPoint} />
+              </div>
             )}
              <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
           </>

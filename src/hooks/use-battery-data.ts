@@ -1,9 +1,10 @@
 "use client";
 
-import { useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useReducer, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, RawBatteryCollection, RawBatteryDataPoint } from '@/lib/types';
 import { extractDataFromBMSImage } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
+import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
 import { useToast } from './use-toast';
 
 // == STATE & REDUCER == //
@@ -13,6 +14,7 @@ type State = {
   currentBatteryId: string | null;
   isLoading: boolean;
   alerts: string[];
+  healthSummary: string;
   uploadProgress: number | null;
   processedFileCount: number;
   totalFileCount: number;
@@ -26,6 +28,7 @@ type Action =
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
   | { type: 'ADD_DATA'; payload: { data: BatteryDataPoint; dateContext: Date, isFirstUpload: boolean } }
   | { type: 'SET_ALERTS'; payload: string[] }
+  | { type: 'SET_HEALTH_SUMMARY'; payload: string }
   | { type: 'CLEAR_BATTERY_DATA'; payload: string }
   | { type: 'SET_UPLOAD_PROGRESS'; payload: { progress: number | null, processed: number } };
 
@@ -35,6 +38,7 @@ const initialState: State = {
   currentBatteryId: null,
   isLoading: false,
   alerts: [],
+  healthSummary: '',
   uploadProgress: null,
   processedFileCount: 0,
   totalFileCount: 0,
@@ -51,7 +55,7 @@ const reducer = (state: State, action: Action): State => {
     case 'SET_BATTERIES':
       return { ...state, batteries: action.payload.batteries, rawBatteries: action.payload.rawBatteries };
     case 'SET_CURRENT_BATTERY':
-      return { ...state, currentBatteryId: action.payload, alerts: [] };
+      return { ...state, currentBatteryId: action.payload, alerts: [], healthSummary: '' };
     case 'ADD_DATA': {
       const { data, dateContext, isFirstUpload } = action.payload;
       const { batteryId } = data;
@@ -114,6 +118,8 @@ const reducer = (state: State, action: Action): State => {
     }
     case 'SET_ALERTS':
       return { ...state, alerts: action.payload };
+    case 'SET_HEALTH_SUMMARY':
+        return { ...state, healthSummary: action.payload };
     case 'CLEAR_BATTERY_DATA': {
       if (!action.payload) return state;
       const newBatteries = { ...state.batteries };
@@ -121,7 +127,7 @@ const reducer = (state: State, action: Action): State => {
       const newRawBatteries = { ...state.rawBatteries };
       delete newRawBatteries[action.payload];
       const newCurrentBatteryId = Object.keys(newBatteries)[0] || null;
-      return { ...state, batteries: newBatteries, rawBatteries: newRawBatteries, currentBatteryId: newCurrentBatteryId, alerts: [] };
+      return { ...state, batteries: newBatteries, rawBatteries: newRawBatteries, currentBatteryId: newCurrentBatteryId, alerts: [], healthSummary: '' };
     }
     case 'SET_UPLOAD_PROGRESS':
       return { ...state, uploadProgress: action.payload.progress, processedFileCount: action.payload.processed };
@@ -130,10 +136,7 @@ const reducer = (state: State, action: Action): State => {
   }
 };
 
-// Function to parse date from filename
-// Supports formats like "Screenshot_YYYYMMDD-HHMMSS.png" or "IMG_YYYY-MM-DD_HH-MM-SS.jpg"
 const parseDateFromFilename = (filename: string): Date | null => {
-    // Regex for YYYYMMDD-HHMMSS or YYYYMMDD_HHMMSS
     const regex1 = /(\d{4})(\d{2})(\d{2})[-_]?(\d{2})(\d{2})(\d{2})/;
     const match1 = filename.match(regex1);
     if (match1) {
@@ -141,7 +144,6 @@ const parseDateFromFilename = (filename: string): Date | null => {
         return new Date(year, month - 1, day, hour, minute, second);
     }
     
-    // Regex for YYYY-MM-DD_HH-MM-SS
     const regex2 = /(\d{4})-(\d{2})-(\d{2})[-_]?(\d{2})-(\d{2})-(\d{2})/;
     const match2 = filename.match(regex2);
     if (match2) {
@@ -156,7 +158,10 @@ const parseDateFromFilename = (filename: string): Date | null => {
 export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { toast } = useToast();
-  const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAiRunning = useRef(false);
+  const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
+
 
   const processUploadedFiles = useCallback(async (files: File[], dateContext: Date) => {
     const totalFiles = files.length;
@@ -205,7 +210,6 @@ export const useBatteryData = () => {
       }
     }
 
-    // Use a timeout to allow the progress bar to reach 100% and be visible.
     setTimeout(() => {
       dispatch({ type: 'RESET_UPLOAD_STATE' });
       
@@ -221,13 +225,12 @@ export const useBatteryData = () => {
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
     dispatch({ type: 'SET_CURRENT_BATTERY', payload: batteryId });
+    setPreviousDataPoint(null);
   }, []);
 
   const clearCurrentBatteryData = useCallback((backup: boolean) => {
     if (!state.currentBatteryId) return;
     if (backup) {
-      // In a real app, you'd send this to a server or download it.
-      // For this example, we'll just log it to the console.
       const dataToBackup = {
           averagedData: state.batteries[state.currentBatteryId],
           rawData: state.rawBatteries[state.currentBatteryId],
@@ -254,20 +257,18 @@ export const useBatteryData = () => {
   const latestDataPoint = useMemo(() => currentBatteryData.length > 0 ? currentBatteryData[currentBatteryData.length - 1] : null, [currentBatteryData]);
 
   useEffect(() => {
-    if (alertTimeoutRef.current) {
-        clearTimeout(alertTimeoutRef.current);
+    if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
     }
 
-    if (!latestDataPoint) {
-      if(state.alerts.length > 0) {
-        dispatch({ type: 'SET_ALERTS', payload: [] });
-      }
+    if (!latestDataPoint || isAiRunning.current) {
       return;
     }
-
-    const checkForAlerts = async () => {
+    
+    const runAiTasks = async () => {
+      isAiRunning.current = true;
       try {
-        const { alerts } = await displayAlertsForDataDeviations({
+        const healthSummaryPromise = summarizeBatteryHealth({
           batteryId: latestDataPoint.batteryId,
           soc: latestDataPoint.soc,
           voltage: latestDataPoint.voltage,
@@ -275,33 +276,58 @@ export const useBatteryData = () => {
           maxCellVoltage: latestDataPoint.maxCellVoltage ?? null,
           minCellVoltage: latestDataPoint.minCellVoltage ?? null,
           averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
+          cycleCount: latestDataPoint.cycleCount,
         });
-        if (JSON.stringify(alerts) !== JSON.stringify(state.alerts)) {
-            dispatch({ type: 'SET_ALERTS', payload: alerts });
+
+        let alertsPromise: Promise<{ alerts: string[] }> | null = null;
+        const socChanged = previousDataPoint ? Math.abs(latestDataPoint.soc - previousDataPoint.soc) > 2 : true;
+        const cellDiffChanged = previousDataPoint ? Math.abs((latestDataPoint.cellVoltageDifference ?? 0) - (previousDataPoint.cellVoltageDifference ?? 0)) > 0.005 : true;
+
+        if (socChanged || cellDiffChanged) {
+          alertsPromise = displayAlertsForDataDeviations({
+            batteryId: latestDataPoint.batteryId,
+            soc: latestDataPoint.soc,
+            voltage: latestDataPoint.voltage,
+            current: latestDataPoint.current,
+            maxCellVoltage: latestDataPoint.maxCellVoltage ?? null,
+            minCellVoltage: latestDataPoint.minCellVoltage ?? null,
+            averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
+          });
         }
+        
+        const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
+
+        if (healthResult?.summary && healthResult.summary !== state.healthSummary) {
+          dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
+        }
+        if (alertsResult?.alerts && JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
+          dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
+        }
+        setPreviousDataPoint(latestDataPoint);
+        
       } catch (error) {
-        console.error("Error checking for alerts:", error);
-        // Avoid showing toast for rate limit errors which are expected
-        if (error instanceof Error && !error.message.includes('429')) {
+        console.error("Error running AI tasks:", error);
+        if (error instanceof Error && !/429|503/.test(error.message)) {
             toast({
                 variant: "destructive",
-                title: "Could not check for alerts",
-                description: "There was an issue with the AI service.",
+                title: "Could not fetch AI insights",
+                description: "There was an issue with the AI service. Retrying shortly.",
             });
         }
+      } finally {
+        isAiRunning.current = false;
       }
     };
     
-    // Debounce the call to prevent rate limiting issues during rapid uploads
-    alertTimeoutRef.current = setTimeout(checkForAlerts, 1500);
+    aiTimeoutRef.current = setTimeout(runAiTasks, 2000);
 
     return () => {
-        if(alertTimeoutRef.current) {
-            clearTimeout(alertTimeoutRef.current);
+        if(aiTimeoutRef.current) {
+            clearTimeout(aiTimeoutRef.current);
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestDataPoint, toast]);
+  }, [latestDataPoint]);
 
 
   return {
@@ -314,5 +340,3 @@ export const useBatteryData = () => {
     clearCurrentBatteryData,
   };
 };
-
-    

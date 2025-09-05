@@ -17,9 +17,10 @@ import { formatDistanceToNow } from 'date-fns';
 
 interface OverviewSectionProps {
   data: BatteryDataPointWithDate;
+  healthSummary: string;
 }
 
-export default function OverviewSection({ data }: OverviewSectionProps) {
+export default function OverviewSection({ data, healthSummary }: OverviewSectionProps) {
   const isDataFresh = new Date().getTime() - new Date(data.timestamp).getTime() < 4 * 60 * 60 * 1000;
   const timeAgo = formatDistanceToNow(new Date(data.timestamp), { addSuffix: true });
 
@@ -56,7 +57,7 @@ export default function OverviewSection({ data }: OverviewSectionProps) {
           <SOCGauge soc={data.soc} />
         </Card>
         <div className="lg:col-span-2">
-          <HealthSummary data={data} />
+          <HealthSummary summary={healthSummary} isLoading={!healthSummary && isDataFresh}/>
         </div>
       </div>
       

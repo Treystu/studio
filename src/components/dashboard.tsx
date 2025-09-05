@@ -16,7 +16,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Initialize date on client to avoid hydration mismatch
-    setSelectedDate(new Date());
+    if (typeof window !== 'undefined') {
+      setSelectedDate(new Date());
+    }
   }, []);
   
   const {
@@ -30,6 +32,7 @@ export default function Dashboard() {
     clearCurrentBatteryData,
     isLoading,
     alerts,
+    healthSummary,
     uploadProgress,
     processedFileCount,
     totalFileCount,
@@ -98,7 +101,7 @@ export default function Dashboard() {
             <AlertsSection alerts={alerts} />
             {latestDataPoint && (
               <div className="grid grid-cols-1 gap-8 animate-fade-in">
-                <OverviewSection data={latestDataPoint} />
+                <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
                 <MetricsSection data={latestDataPoint} />
                 <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
               </div>

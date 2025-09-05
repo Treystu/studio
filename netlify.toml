@@ -6,6 +6,9 @@
   # This directory contains the output of the build
   publish = ".next"
 
+[build.environment]
+  NODE_VERSION = "20"
+
 [functions]
   # This specifies the directory where your Genkit serverless functions are located
   directory = ".firebase/functions"

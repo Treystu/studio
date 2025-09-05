@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
+    // Initialize date on client to avoid hydration mismatch
     setSelectedDate(new Date());
   }, []);
   
@@ -29,6 +30,7 @@ export default function Dashboard() {
     clearCurrentBatteryData,
     isLoading,
     alerts,
+    uploadProgress,
   } = useBatteryData();
 
   const handleFileUpload = (files: File[]) => {
@@ -51,6 +53,7 @@ export default function Dashboard() {
         onClearData={clearCurrentBatteryData}
         isLoading={isLoading}
         hasData={!!currentBatteryId}
+        uploadProgress={uploadProgress}
       />
       <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-8">
         {isLoading && !hasData ? (

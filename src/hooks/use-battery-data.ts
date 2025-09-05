@@ -13,6 +13,7 @@ type State = {
   currentBatteryId: string | null;
   isLoading: boolean;
   alerts: string[];
+  uploadProgress: number | null;
 };
 
 type Action =
@@ -22,7 +23,8 @@ type Action =
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
   | { type: 'ADD_DATA'; payload: { data: BatteryDataPoint; dateContext: Date } }
   | { type: 'SET_ALERTS'; payload: string[] }
-  | { type: 'CLEAR_BATTERY_DATA'; payload: string };
+  | { type: 'CLEAR_BATTERY_DATA'; payload: string }
+  | { type: 'SET_UPLOAD_PROGRESS'; payload: number | null };
 
 const initialState: State = {
   batteries: {},
@@ -30,6 +32,7 @@ const initialState: State = {
   currentBatteryId: null,
   isLoading: false,
   alerts: [],
+  uploadProgress: null,
 };
 
 const reducer = (state: State, action: Action): State => {
@@ -106,6 +109,8 @@ const reducer = (state: State, action: Action): State => {
       const newCurrentBatteryId = Object.keys(newBatteries)[0] || null;
       return { ...state, batteries: newBatteries, rawBatteries: newRawBatteries, currentBatteryId: newCurrentBatteryId, alerts: [] };
     }
+    case 'SET_UPLOAD_PROGRESS':
+      return { ...state, uploadProgress: action.payload };
     default:
       return state;
   }
@@ -118,42 +123,52 @@ export const useBatteryData = () => {
 
   const processUploadedFiles = useCallback(async (files: File[], dateContext: Date) => {
     dispatch({ type: 'START_LOADING' });
+    dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: 0 });
     let firstBatteryId: string | null = null;
+    let processedCount = 0;
+    const totalFiles = files.length;
+    
     try {
-      await Promise.all(
-        files.map(async (file, index) => {
-          try {
-            const reader = new FileReader();
-            const dataUri = await new Promise<string>((resolve, reject) => {
-              reader.onload = e => resolve(e.target?.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(file);
-            });
+      for (const [index, file] of files.entries()) {
+        try {
+          const reader = new FileReader();
+          const dataUri = await new Promise<string>((resolve, reject) => {
+            reader.onload = e => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
 
-            const extractedData = await extractDataFromBMSImage({ photoDataUri: dataUri });
-            if (index === 0 && !state.currentBatteryId) {
-                firstBatteryId = extractedData.batteryId;
-            }
-            dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext } });
-          } catch (error) {
-            console.error('Error processing file:', file.name, error);
-            toast({
-              variant: 'destructive',
-              title: `Error processing ${file.name}`,
-              description: 'Could not extract data from the image.',
-            });
+          const extractedData = await extractDataFromBMSImage({ photoDataUri: dataUri });
+          if (index === 0 && !state.currentBatteryId) {
+              firstBatteryId = extractedData.batteryId;
           }
-        })
-      );
+          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext } });
+          processedCount++;
+        } catch (error) {
+          console.error('Error processing file:', file.name, error);
+          toast({
+            variant: 'destructive',
+            title: `Error processing ${file.name}`,
+            description: 'Could not extract data from the image.',
+          });
+        } finally {
+            dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: ( (index + 1) / totalFiles) * 100 });
+        }
+      }
+
       if (firstBatteryId) {
         dispatch({ type: 'SET_CURRENT_BATTERY', payload: firstBatteryId });
       }
     } finally {
       dispatch({ type: 'STOP_LOADING' });
-      toast({
-        title: 'Upload Complete',
-        description: `${files.length} file(s) processed.`,
-      });
+      // Use a timeout to allow the progress bar to reach 100% and be visible.
+      setTimeout(() => {
+        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: null });
+        toast({
+            title: 'Upload Complete',
+            description: `${processedCount}/${totalFiles} file(s) processed successfully.`,
+          });
+      }, 1000);
     }
   }, [toast, state.currentBatteryId]);
 

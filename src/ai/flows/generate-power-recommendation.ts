@@ -121,7 +121,6 @@ const GeneratePowerRecommendationInputSchema = z.object({
   soc: z.number().describe('The current State of Charge (SOC) of the battery.'),
   power: z.number().describe('The current power draw/charge in kW.'),
   location: z.string().describe('The location for the weather forecast (e.g., "New York, NY").'),
-  apiKey: z.string().optional().describe('The Google AI API key.'),
 });
 export type GeneratePowerRecommendationInput = z.infer<typeof GeneratePowerRecommendationInputSchema>;
 
@@ -167,14 +166,14 @@ const generatePowerRecommendationFlow = ai.defineFlow(
   },
   async (input) => {
     logger.info('generatePowerRecommendationFlow invoked with input:', input);
-    const {apiKey, ...promptData} = input;
-    if (!apiKey) {
+
+    if (!process.env.GEMINI_API_KEY) {
       logger.error('API key is missing in generatePowerRecommendationFlow');
-      throw new APIError(400, 'API key is required.');
+      throw new APIError(400, 'Server is not configured with an API key.');
     }
     
     try {
-      const { output } = await generatePowerRecommendationPrompt(promptData, { auth: { apiKey } });
+      const { output } = await generatePowerRecommendationPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
 
       if (!output) {
         throw new Error('No output from AI');

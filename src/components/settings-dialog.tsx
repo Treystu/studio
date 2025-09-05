@@ -1,48 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { version } from '../../package.json';
 import { useBatteryData } from "@/hooks/use-battery-data";
 import { logger } from "@/lib/logger";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Info } from "lucide-react";
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const API_KEY_STORAGE_KEY = "gemini_api_key";
-
 export default function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const [apiKey, setApiKey] = useState("");
   const { toast } = useToast();
   const batteryDataState = useBatteryData();
-
-  useEffect(() => {
-    if (open) {
-      const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-      if (storedKey) {
-        setApiKey(storedKey);
-      }
-    }
-  }, [open]);
-
-  const handleSave = () => {
-    localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
-    
-    toast({
-      title: "API Key Saved",
-      description: "The page will now reload to apply the new API key.",
-    });
-
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
-  };
 
   const handleDownloadDiagnostics = () => {
     const diagnostics = {
@@ -61,7 +36,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
         }
       },
       logs: logger.getLogs(),
-      appState: { ...batteryDataState, processUploadedFiles: 'function', setCurrentBatteryId: 'function', clearCurrentBatteryData: 'function' },
+      appState: { ...batteryDataState, processUploadedFiles: 'function', setCurrentBatteryId: 'function', clearCurrentBatteryData: 'function', getAiInsights: 'function' },
     };
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(diagnostics, null, 2));
@@ -82,28 +57,23 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
+          <DialogTitle>Application Settings</DialogTitle>
           <DialogDescription>
-            Manage your application settings and API keys here.
+            Manage application settings and diagnostic data.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="api-key" className="text-right">
-              Gemini API Key
-            </Label>
-            <Input
-              id="api-key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="col-span-3"
-              type="password"
-            />
-          </div>
+        <div className="py-4">
+            <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>API Key Configuration</AlertTitle>
+                <AlertDescription>
+                    This application is now configured to use the `GEMINI_API_KEY` environment variable on the server. There is no longer a need to manage the API key in the browser.
+                </AlertDescription>
+            </Alert>
         </div>
         <DialogFooter className="sm:justify-between border-t pt-4">
           <Button variant="outline" onClick={handleDownloadDiagnostics}>Download Diagnostics</Button>
-          <Button onClick={handleSave}>Save and Reload</Button>
+          <Button onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -2,13 +2,11 @@
 
 import { useReducer, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, RawBatteryCollection, RawBatteryDataPoint } from '@/lib/types';
-import { extractDataFromBMSImage } from '@/ai/flows/extract-data-from-bms-image';
+import { extractDataFromBMSImages } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
 import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
 import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
-
-const API_KEY_STORAGE_KEY = "gemini_api_key";
 
 // == STATE & REDUCER == //
 type State = {
@@ -18,24 +16,25 @@ type State = {
   isLoading: boolean;
   alerts: string[];
   healthSummary: string;
+  isSummaryLoading: boolean;
   uploadProgress: number | null;
   processedFileCount: number;
   totalFileCount: number;
-  apiKey: string | null;
 };
 
 type Action =
   | { type: 'START_LOADING'; payload: { totalFiles: number } }
   | { type: 'STOP_LOADING' }
+  | { type: 'START_SUMMARY_LOADING' }
+  | { type: 'STOP_SUMMARY_LOADING' }
   | { type: 'RESET_UPLOAD_STATE' }
   | { type: 'SET_BATTERIES'; payload: { batteries: BatteryCollection, rawBatteries: RawBatteryCollection } }
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
-  | { type: 'ADD_DATA'; payload: { data: BatteryDataPoint; dateContext: Date, isFirstUpload: boolean } }
+  | { type: 'ADD_DATA_BATCH'; payload: { data: BatteryDataPoint[]; dateContext: Date, isFirstUpload: boolean } }
   | { type: 'SET_ALERTS'; payload: string[] }
   | { type: 'SET_HEALTH_SUMMARY'; payload: string }
   | { type: 'CLEAR_BATTERY_DATA'; payload: string }
-  | { type: 'INCREMENT_PROCESSED_COUNT' }
-  | { type: 'SET_API_KEY'; payload: string | null };
+  | { type: 'UPDATE_UPLOAD_PROGRESS'; payload: { processed: number, total: number } };
 
 const initialState: State = {
   batteries: {},
@@ -44,87 +43,88 @@ const initialState: State = {
   isLoading: false,
   alerts: [],
   healthSummary: '',
+  isSummaryLoading: false,
   uploadProgress: null,
   processedFileCount: 0,
   totalFileCount: 0,
-  apiKey: null,
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload, null, 2).substring(0, 200) + '...' : '');
+  logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload, null, 2).substring(0, 300) + '...' : '');
   switch (action.type) {
     case 'START_LOADING':
       logger.log(`Upload started: ${action.payload.totalFiles} files`);
       return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
+    case 'START_SUMMARY_LOADING':
+      return { ...state, isSummaryLoading: true };
+    case 'STOP_SUMMARY_LOADING':
+        return { ...state, isSummaryLoading: false };
     case 'RESET_UPLOAD_STATE':
         return { ...state, isLoading: false, totalFileCount: 0, processedFileCount: 0, uploadProgress: null };
     case 'SET_BATTERIES':
       return { ...state, batteries: action.payload.batteries, rawBatteries: action.payload.rawBatteries };
     case 'SET_CURRENT_BATTERY':
       return { ...state, currentBatteryId: action.payload, alerts: [], healthSummary: '' };
-    case 'ADD_DATA': {
+    case 'ADD_DATA_BATCH': {
       const { data, dateContext, isFirstUpload } = action.payload;
-      const { batteryId } = data;
-      logger.log('Adding data for battery:', batteryId);
+      logger.log(`Adding batch of ${data.length} data points.`);
 
-      const timeParts = data.timestamp.split(':').map(Number);
-      
-      const newTimestamp = new Date(dateContext);
-      if (timeParts.length >= 2) {
-          newTimestamp.setHours(timeParts[0], timeParts[1], timeParts[2] || 0, 0);
-      }
-      logger.log(`Final timestamp for data point determined as: ${newTimestamp.toISOString()}`);
+      let updatedRawBatteries = { ...state.rawBatteries };
+      let updatedAveragedBatteries = { ...state.batteries };
+      let newCurrentBatteryId = state.currentBatteryId;
 
+      data.forEach(dataPoint => {
+        const { batteryId } = dataPoint;
 
-      const newRawDataPoint: RawBatteryDataPoint = { ...data, timestamp: newTimestamp };
-      const newAveragedDataPoint: BatteryDataPointWithDate = { ...data, timestamp: newTimestamp, uploadCount: 1 };
+        const timeParts = dataPoint.timestamp.split(':').map(Number);
+        const newTimestamp = new Date(dateContext);
+        if (timeParts.length >= 2) {
+            newTimestamp.setHours(timeParts[0], timeParts[1], timeParts[2] || 0, 0);
+        }
 
-      const updatedRawBatteries = { ...state.rawBatteries };
-      const existingRawData = updatedRawBatteries[batteryId] || [];
-      updatedRawBatteries[batteryId] = [...existingRawData, newRawDataPoint].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
-     
-      const updatedAveragedBatteries = { ...state.batteries };
-      const existingAveragedData = updatedAveragedBatteries[batteryId] || [];
-      
-      const hourKey = new Date(newTimestamp.getFullYear(), newTimestamp.getMonth(), newTimestamp.getDate(), newTimestamp.getHours()).getTime();
-      
-      const existingIndex = existingAveragedData.findIndex(p => {
-        const pDate = p.timestamp;
-        return new Date(pDate.getFullYear(), pDate.getMonth(), pDate.getDate(), pDate.getHours()).getTime() === hourKey;
+        const newRawDataPoint: RawBatteryDataPoint = { ...dataPoint, timestamp: newTimestamp };
+        const newAveragedDataPoint: BatteryDataPointWithDate = { ...dataPoint, timestamp: newTimestamp, uploadCount: 1 };
+
+        let existingRawData = updatedRawBatteries[batteryId] || [];
+        updatedRawBatteries[batteryId] = [...existingRawData, newRawDataPoint].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
+       
+        let existingAveragedData = updatedAveragedBatteries[batteryId] || [];
+        const hourKey = new Date(newTimestamp.getFullYear(), newTimestamp.getMonth(), newTimestamp.getDate(), newTimestamp.getHours()).getTime();
+        const existingIndex = existingAveragedData.findIndex(p => new Date(p.timestamp.getFullYear(), p.timestamp.getMonth(), p.timestamp.getDate(), p.timestamp.getHours()).getTime() === hourKey);
+
+        if (existingIndex !== -1) {
+          const existingPoint = existingAveragedData[existingIndex];
+          const averagedPoint = { ...existingPoint };
+          const existingCount = existingPoint.uploadCount || 1;
+          const newTotalCount = existingCount + 1;
+          (Object.keys(newAveragedDataPoint) as Array<keyof BatteryDataPointWithDate>).forEach(key => {
+            if (typeof existingPoint[key] === 'number' && typeof newAveragedDataPoint[key] === 'number' && key !== 'uploadCount') {
+              const existingValue = existingPoint[key] as number;
+              const newValue = newAveragedDataPoint[key] as number;
+              (averagedPoint[key] as number) = (existingValue * existingCount + newValue) / newTotalCount;
+            } else if (newAveragedDataPoint[key] !== null && newAveragedDataPoint[key] !== undefined) {
+               (averagedPoint as any)[key] = newAveragedDataPoint[key];
+            }
+          });
+          averagedPoint.uploadCount = newTotalCount;
+          existingAveragedData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
+          updatedAveragedBatteries[batteryId] = [...existingAveragedData];
+        } else {
+          existingAveragedData.push(newAveragedDataPoint);
+          updatedAveragedBatteries[batteryId] = existingAveragedData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        }
+
+        if (isFirstUpload && !newCurrentBatteryId) {
+            newCurrentBatteryId = batteryId;
+        }
       });
-
-      if (existingIndex !== -1) {
-        logger.log('Found existing data point for this hour. Averaging values.');
-        const existingPoint = existingAveragedData[existingIndex];
-        const averagedPoint = { ...existingPoint };
-
-        const existingCount = existingPoint.uploadCount || 1;
-        const newTotalCount = existingCount + 1;
-
-        (Object.keys(newAveragedDataPoint) as Array<keyof BatteryDataPointWithDate>).forEach(key => {
-          if (typeof existingPoint[key] === 'number' && typeof newAveragedDataPoint[key] === 'number' && key !== 'uploadCount') {
-            const existingValue = existingPoint[key] as number;
-            const newValue = newAveragedDataPoint[key] as number;
-            (averagedPoint[key] as number) = (existingValue * existingCount + newValue) / newTotalCount;
-          } else if (newAveragedDataPoint[key] !== null && newAveragedDataPoint[key] !== undefined) {
-             (averagedPoint as any)[key] = newAveragedDataPoint[key];
-          }
-        });
-        
-        averagedPoint.uploadCount = newTotalCount;
-        existingAveragedData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
-        updatedAveragedBatteries[batteryId] = [...existingAveragedData];
-      } else {
-        logger.log('No existing data for this hour. Adding new point.');
-        updatedAveragedBatteries[batteryId] = [...existingAveragedData, newAveragedDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-      }
       
       const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
       if (isFirstUpload && !state.currentBatteryId) {
-        logger.log(`This is the first upload. Setting current battery to: ${batteryId}`);
-        newState.currentBatteryId = batteryId;
+        logger.log(`This is the first upload. Setting current battery to: ${newCurrentBatteryId}`);
+        newState.currentBatteryId = newCurrentBatteryId;
       }
       return newState;
     }
@@ -141,34 +141,27 @@ const reducer = (state: State, action: Action): State => {
       const newCurrentBatteryId = Object.keys(newBatteries)[0] || null;
       return { ...state, batteries: newBatteries, rawBatteries: newRawBatteries, currentBatteryId: newCurrentBatteryId, alerts: [], healthSummary: '' };
     }
-     case 'INCREMENT_PROCESSED_COUNT':
-      const newProcessedCount = state.processedFileCount + 1;
-      logger.log(`Processed file ${newProcessedCount}/${state.totalFileCount}`);
-      return { ...state, processedFileCount: newProcessedCount, uploadProgress: (newProcessedCount / state.totalFileCount) * 100 };
-    case 'SET_API_KEY':
-        return {...state, apiKey: action.payload};
+    case 'UPDATE_UPLOAD_PROGRESS':
+        const { processed, total } = action.payload;
+        return { ...state, processedFileCount: processed, totalFileCount: total, uploadProgress: (processed / total) * 100 };
     default:
       return state;
   }
 };
 
 const parseDateFromFilename = (filename: string): Date | null => {
-    // Matches YYYYMMDD-HHMMSS or YYYYMMDD_HHMMSS
     const regex1 = /(\d{4})(\d{2})(\d{2})[-_]?(\d{2})(\d{2})(\d{2})/;
     const match1 = filename.match(regex1);
     if (match1) {
         const [, year, month, day, hour, minute, second] = match1.map(Number);
         return new Date(year, month - 1, day, hour, minute, second);
     }
-    
-    // Matches YYYY-MM-DD-HH-MM-SS or YYYY-MM-DD_HH-MM-SS
     const regex2 = /(\d{4})-(\d{2})-(\d{2})[-_]?(\d{2})-(\d{2})-(\d{2})/;
     const match2 = filename.match(regex2);
     if (match2) {
         const [, year, month, day, hour, minute, second] = match2.map(Number);
         return new Date(year, month - 1, day, hour, minute, second);
     }
-
     return null;
 }
 
@@ -176,32 +169,19 @@ const parseDateFromFilename = (filename: string): Date | null => {
 export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { toast } = useToast();
-  const isProcessingQueue = useRef(false);
-  const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
-  const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
 
-  useEffect(() => {
-    logger.log("useBatteryData hook mounted. Checking for API Key.");
-    const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-    if (storedKey) {
-      dispatch({ type: 'SET_API_KEY', payload: storedKey });
-      logger.log("API Key found in localStorage.");
-    } else {
-       logger.warn("API Key not found in localStorage.");
-    }
-  }, []);
-
-  const runAiTasks = useCallback(async () => {
-    const latestDataPoint = state.currentBatteryData[state.currentBatteryData.length - 1];
-    if (!latestDataPoint || !state.apiKey) {
-      logger.log("AI Insights: Skipping, no latest data point or API key.");
+  const getAiInsights = useCallback(async () => {
+    const latestDataPoint = state.currentBatteryId ? state.batteries[state.currentBatteryId]?.[state.batteries[state.currentBatteryId].length - 1] : null;
+    if (!latestDataPoint) {
+      logger.log("AI Insights: Skipping, no latest data point.");
+      toast({ variant: 'destructive', title: 'No Data', description: 'Cannot generate insights without data.'});
       return;
     }
   
-    logger.log("AI Insights: Running scheduled tasks after queue completion...");
+    logger.log("AI Insights: User requested insights...");
+    dispatch({ type: 'START_SUMMARY_LOADING' });
     try {
       const commonPayload = {
-        apiKey: state.apiKey as string,
         batteryId: latestDataPoint.batteryId,
         soc: latestDataPoint.soc,
         voltage: latestDataPoint.voltage,
@@ -212,18 +192,10 @@ export const useBatteryData = () => {
         cycleCount: latestDataPoint.cycleCount,
       };
       
-      logger.log("AI Insights: Requesting health summary...");
-      const healthSummaryPromise = summarizeBatteryHealth(commonPayload);
-
-      let alertsPromise: Promise<any> | null = null;
-      const socChanged = !previousDataPoint || latestDataPoint.soc !== previousDataPoint.soc;
-      const cellDiffChanged = !previousDataPoint || latestDataPoint.cellVoltageDifference !== previousDataPoint.cellVoltageDifference;
-      if (socChanged || cellDiffChanged) {
-        logger.log("AI Insights: Data has changed significantly, requesting new alerts.", { socChanged, cellDiffChanged });
-        alertsPromise = displayAlertsForDataDeviations(commonPayload);
-      }
-      
-      const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
+      const [healthResult, alertsResult] = await Promise.all([
+        summarizeBatteryHealth(commonPayload),
+        displayAlertsForDataDeviations(commonPayload)
+      ]);
       
       if (healthResult?.summary) {
           logger.log("AI Insights: New health summary received.");
@@ -234,117 +206,61 @@ export const useBatteryData = () => {
           logger.log("AI Insights: New alerts received.");
           dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
       }
-
-      logger.log("AI Insights: Updating previousDataPoint.");
-      setPreviousDataPoint(latestDataPoint);
       
     } catch (error: any) {
       logger.error("AI Insights: Error running tasks:", error);
+      toast({ variant: 'destructive', title: 'AI Error', description: 'Could not generate AI insights.'});
+    } finally {
+        dispatch({ type: 'STOP_SUMMARY_LOADING'});
     }
-  }, [state.apiKey, state.currentBatteryData, previousDataPoint]);
+  }, [state.currentBatteryId, state.batteries, toast]);
 
 
-  const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
-    logger.log(`Starting to process file: ${file.name}`);
-     if (!state.apiKey) {
-      toast({
-        variant: "destructive",
-        title: "API Key Required",
-        description: "Please set your Gemini API key in the settings before uploading files.",
-      });
-      return false; 
-    }
-
+  const processUploadedFiles = useCallback(async (files: File[], dateContext: Date) => {
+    dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
+    
     try {
-        const filenameDate = parseDateFromFilename(file.name);
-        const fileDateContext = filenameDate || dateContext;
-        logger.log(`Processing file: ${file.name} with date context: ${fileDateContext.toISOString()}`);
+        const dataUris = await Promise.all(
+            files.map(file => {
+                return new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target?.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            })
+        );
+        dispatch({ type: 'UPDATE_UPLOAD_PROGRESS', payload: { processed: files.length / 2, total: files.length } });
+
+        logger.log(`All files converted to data URIs. Calling 'extractDataFromBMSImages' AI flow...`);
+        const extractedData = await extractDataFromBMSImages({ photoDataUris: dataUris });
+
+        dispatch({ type: 'UPDATE_UPLOAD_PROGRESS', payload: { processed: files.length, total: files.length } });
         
-        const reader = new FileReader();
-        const dataUri = await new Promise<string>((resolve, reject) => {
-            reader.onload = e => resolve(e.target?.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
+        const isFirstUpload = Object.keys(state.batteries).length === 0;
+        dispatch({ type: 'ADD_DATA_BATCH', payload: { data: extractedData.results, dateContext, isFirstUpload } });
+        logger.log(`Successfully processed batch of ${files.length} files.`);
         
-        logger.log(`File converted to data URI. Calling 'extractDataFromBMSImage' AI flow...`);
-        const payload = { photoDataUri: dataUri, apiKey: state.apiKey };
-        const extractedData = await extractDataFromBMSImage(payload);
-        
-        dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
-        logger.log(`Successfully processed file: ${file.name}`);
-        return true;
+        toast({ title: 'Upload Complete', description: `${files.length} file(s) processed successfully.` });
+
     } catch (error: any) {
-        logger.error(`Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
+        logger.error(`Error processing files:`, error);
         toast({
             variant: 'destructive',
-            title: `Error processing ${file.name}`,
+            title: `Error processing batch`,
             description: `Could not extract data. Check logs for details.`,
             duration: 10000,
         });
-        return false;
-    }
-  }
-
-  const processQueue = useCallback(async () => {
-    if (isProcessingQueue.current) {
-        logger.log("Process Queue: Already processing, returning.");
-        return;
-    }
-    if (uploadQueue.current.length === 0) {
-      logger.log("Process Queue: Queue is empty.");
-      if (state.totalFileCount > 0 && state.processedFileCount > 0) {
-        await runAiTasks();
+    } finally {
         setTimeout(() => {
             dispatch({ type: 'RESET_UPLOAD_STATE' });
-            toast({ title: 'Upload Complete', description: `${state.processedFileCount} file(s) processed.` });
-        }, 1000); // Give a moment for the progress bar to show 100%
-      }
-      return;
+        }, 1500);
     }
-
-    isProcessingQueue.current = true;
-    logger.log(`Processing next item in queue: ${uploadQueue.current[0].file.name}. Queue length: ${uploadQueue.current.length}`);
-    const { file, dateContext } = uploadQueue.current.shift()!;
-    const isFirstUpload = state.currentBatteryId === null;
-
-    const success = await processFile(file, dateContext, isFirstUpload);
-    dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
-    
-    if (!success) {
-      logger.warn('File processing failed, clearing remainder of upload queue and resetting state.');
-      uploadQueue.current = []; // Clear the queue on failure
-      dispatch({ type: 'RESET_UPLOAD_STATE' });
-    }
-    
-    isProcessingQueue.current = false;
-    processQueue(); // Use setImmediate/setTimeout to avoid deep recursion
-  }, [state.apiKey, state.currentBatteryId, state.totalFileCount, state.processedFileCount, toast, runAiTasks]);
-
-  const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
-     if (!state.apiKey) {
-      toast({
-        variant: "destructive",
-        title: "API Key Not Found",
-        description: "Please set your Gemini API key in the settings menu before uploading.",
-      });
-      logger.error("Upload attempt failed: No API Key is set.");
-      return;
-    }
-    dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
-    const newFiles = files.map(file => ({ file, dateContext }));
-    uploadQueue.current.push(...newFiles);
-    logger.log(`Adding ${files.length} files to the upload queue.`);
-    
-    if (!isProcessingQueue.current) {
-        processQueue();
-    }
-  }, [processQueue, state.apiKey, toast]);
+  }, [state.batteries, toast]);
 
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
     dispatch({ type: 'SET_CURRENT_BATTERY', payload: batteryId });
-    setPreviousDataPoint(null);
   }, []);
 
   const clearCurrentBatteryData = useCallback((backup: boolean) => {
@@ -374,27 +290,7 @@ export const useBatteryData = () => {
   const currentBatteryData = useMemo(() => state.currentBatteryId ? state.batteries[state.currentBatteryId] || [] : [], [state.currentBatteryId, state.batteries]);
   const currentBatteryRawData = useMemo(() => state.currentBatteryId ? state.rawBatteries[state.currentBatteryId] || [] : [], [state.currentBatteryId, state.rawBatteries]);
   const latestDataPoint = useMemo(() => currentBatteryData.length > 0 ? currentBatteryData[currentBatteryData.length - 1] : null, [currentBatteryData]);
-
-  useEffect(() => {
-    if (!latestDataPoint || !state.apiKey) {
-      logger.log("AI Insights: Skipping, no latest data point or API key.");
-      return;
-    }
-    
-    const shouldRunAi = () => {
-      if (!previousDataPoint) return true; // Always run on first data point
-      if (latestDataPoint.timestamp.getTime() !== previousDataPoint.timestamp.getTime()) return true; // Always run if the point is new
-      return false; // Otherwise, don't re-run for the same data
-    }
-    
-    if (shouldRunAi()) {
-        logger.log("AI Insights: latestDataPoint has changed. Scheduling AI tasks.");
-        // We defer the AI tasks to be run explicitly by the queue processor
-        // to avoid race conditions during batch uploads.
-    }
-  }, [latestDataPoint, state.apiKey, previousDataPoint]);
-
-
+  
   return {
     ...state,
     currentBatteryData,
@@ -403,5 +299,6 @@ export const useBatteryData = () => {
     processUploadedFiles,
     setCurrentBatteryId,
     clearCurrentBatteryData,
+    getAiInsights,
   };
 };

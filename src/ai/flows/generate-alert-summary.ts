@@ -13,14 +13,13 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/googleai';
+import { genkit } from 'genkit';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
     z.string().describe('A list of active alerts for the battery.')
   ).describe('The alerts to be summarized.'),
-  apiKey: z.string().optional().describe('The Google AI API key.'),
 });
 export type GenerateAlertSummaryInput = z.infer<typeof GenerateAlertSummaryInputSchema>;
 
@@ -28,6 +27,23 @@ const GenerateAlertSummaryOutputSchema = z.object({
   summary: z.string().describe('A concise summary of the active alerts.'),
 });
 export type GenerateAlertSummaryOutput = z.infer<typeof GenerateAlertSummaryOutputSchema>;
+
+const generateAlertSummaryPrompt = ai.definePrompt({
+    name: 'generateAlertSummaryPrompt',
+    input: { schema: GenerateAlertSummaryInputSchema },
+    output: { schema: GenerateAlertSummaryOutputSchema },
+    model: 'googleai/gemini-1.5-flash-latest',
+    prompt: `You are an AI assistant specializing in summarizing battery alerts.
+  
+      Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
+  
+      Alerts:
+      {{#each alerts}}
+      - {{{this}}}
+      {{/each}}
+  
+      Summary:`,
+});
 
 export async function generateAlertSummary(input: GenerateAlertSummaryInput): Promise<GenerateAlertSummaryOutput> {
   return generateAlertSummaryFlow(input);
@@ -41,30 +57,14 @@ const generateAlertSummaryFlow = ai.defineFlow(
   },
   async input => {
     logger.info('generateAlertSummaryFlow invoked.');
-    const { apiKey, ...promptData } = input;
-    if (!apiKey) {
-      logger.error('API key is missing in generateAlertSummaryFlow');
-      throw new Error('API key is required.');
+
+    if (!process.env.GEMINI_API_KEY) {
+        logger.error('API key is missing. Set GEMINI_API_KEY in your environment.');
+        throw new Error('Server is not configured with an API key.');
     }
     
     try {
-        const localAi = genkit({
-          plugins: [googleAI({apiKey})],
-        });
-
-        const { output } = await localAi.generate({
-            model: 'googleai/gemini-1.5-flash-latest',
-            output: { schema: GenerateAlertSummaryOutputSchema },
-            prompt: `You are an AI assistant specializing in summarizing battery alerts.
-          
-              Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
-          
-              Alerts:
-              ${promptData.alerts.map(a => `- ${a}`).join('\n')}
-          
-              Summary:`,
-        });
-
+        const { output } = await generateAlertSummaryPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
         
         if (!output) {
           throw new Error('No output from AI');

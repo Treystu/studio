@@ -2,23 +2,24 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lightbulb } from 'lucide-react';
-import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Lightbulb, Loader2 } from 'lucide-react';
+import { useState } from "react";
 
 interface HealthSummaryProps {
   summary: string;
   isLoading: boolean;
+  onGenerate: () => void;
 }
 
-export default function HealthSummary({ summary, isLoading }: HealthSummaryProps) {
-  const [displaySummary, setDisplaySummary] = useState(summary);
+export default function HealthSummary({ summary, isLoading, onGenerate }: HealthSummaryProps) {
+  const [hasGenerated, setHasGenerated] = useState(false);
 
-  useEffect(() => {
-    if (!isLoading) {
-      setDisplaySummary(summary);
-    }
-  }, [summary, isLoading]);
-
+  const handleGenerate = () => {
+    setHasGenerated(true);
+    onGenerate();
+  }
+  
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 h-full animate-fade-in">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -26,7 +27,15 @@ export default function HealthSummary({ summary, isLoading }: HealthSummaryProps
         <Lightbulb className="h-5 w-5 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        {isLoading && !displaySummary ? (
+        {!hasGenerated && !summary ? (
+            <div className="pt-2 text-center">
+              <p className="text-sm text-muted-foreground mb-3">Get an AI-powered summary of your battery's health.</p>
+              <Button onClick={handleGenerate} disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Generate Summary
+              </Button>
+            </div>
+        ) : isLoading ? (
           <div className="space-y-2 pt-2">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-5/6" />
@@ -34,7 +43,7 @@ export default function HealthSummary({ summary, isLoading }: HealthSummaryProps
           </div>
         ) : (
           <p className="text-sm text-muted-foreground pt-2">
-            {displaySummary || "No health summary available yet."}
+            {summary || "No health summary available."}
           </p>
         )}
       </CardContent>

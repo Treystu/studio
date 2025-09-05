@@ -10,9 +10,11 @@ import HealthSummary from "./health-summary";
 interface OverviewSectionProps {
   data: BatteryDataPointWithDate;
   healthSummary: string;
+  isSummaryLoading: boolean;
+  onGenerateSummary: () => void;
 }
 
-export default function OverviewSection({ data, healthSummary }: OverviewSectionProps) {
+export default function OverviewSection({ data, healthSummary, isSummaryLoading, onGenerateSummary }: OverviewSectionProps) {
   const metrics = (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
       <MetricCard
@@ -46,7 +48,7 @@ export default function OverviewSection({ data, healthSummary }: OverviewSection
           <SOCGauge soc={data.soc} />
         </Card>
         <div className="lg:col-span-2">
-          <HealthSummary summary={healthSummary} isLoading={!healthSummary}/>
+          <HealthSummary summary={healthSummary} isLoading={isSummaryLoading} onGenerate={onGenerateSummary} />
         </div>
       </div>
       {metrics}

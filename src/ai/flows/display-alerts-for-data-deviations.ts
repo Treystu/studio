@@ -13,8 +13,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/googleai';
+import { genkit } from 'genkit';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -24,7 +24,6 @@ const DisplayAlertsInputSchema = z.object({
   maxCellVoltage: z.number().nullable().describe('The maximum cell voltage. Can be null if data is missing.'),
   minCellVoltage: z.number().nullable().describe('The minimum cell voltage. Can be null if data is missing.'),
   averageCellVoltage: z.number().nullable().describe('The average cell voltage. Can be null if data is missing.'),
-  apiKey: z.string().optional().describe('The Google AI API key.'),
 });
 export type DisplayAlertsInput = z.infer<typeof DisplayAlertsInputSchema>;
 
@@ -34,6 +33,29 @@ const DisplayAlertsOutputSchema = z.object({
   ),
 });
 export type DisplayAlertsOutput = z.infer<typeof DisplayAlertsOutputSchema>;
+
+const displayAlertsPrompt = ai.definePrompt({
+    name: 'displayAlertsPrompt',
+    input: { schema: DisplayAlertsInputSchema },
+    output: { schema: DisplayAlertsOutputSchema },
+    model: 'googleai/gemini-1.5-flash-latest',
+    prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
+  
+      Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
+      1. A rapid drop in SOC (State of Charge).
+      2. A high voltage difference between cells (maxCellVoltage - minCellVoltage).
+  
+      If maxCellVoltage or minCellVoltage are null or 0, do not generate an alert for cell voltage inconsistency. Only generate alerts for valid, non-zero voltage readings that indicate a problem.
+  
+      Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
+  
+      Here is the a battery data:
+      {{{jsonStringify this}}}
+  
+      Return the alerts in a JSON format.
+      `,
+});
+
 
 export async function displayAlertsForDataDeviations(
   input: DisplayAlertsInput
@@ -49,37 +71,14 @@ const displayAlertsFlow = ai.defineFlow(
   },
   async input => {
     logger.info('displayAlertsFlow invoked with input for battery:', input.batteryId);
-    const {apiKey, ...promptData} = input;
-    if (!apiKey) {
-      logger.error('API key is missing in displayAlertsFlow');
-      throw new Error('API key is required.');
+    
+    if (!process.env.GEMINI_API_KEY) {
+        logger.error('API key is missing. Set GEMINI_API_KEY in your environment.');
+        throw new Error('Server is not configured with an API key.');
     }
 
     try {
-        const localAi = genkit({
-          plugins: [googleAI({apiKey})],
-        });
-        
-        const { output } = await localAi.generate({
-            model: 'googleai/gemini-1.5-flash-latest',
-            output: { schema: DisplayAlertsOutputSchema },
-            prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
-          
-              Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
-              1. A rapid drop in SOC (State of Charge).
-              2. A high voltage difference between cells (maxCellVoltage - minCellVoltage).
-          
-              If maxCellVoltage or minCellVoltage are null or 0, do not generate an alert for cell voltage inconsistency. Only generate alerts for valid, non-zero voltage readings that indicate a problem.
-          
-              Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
-          
-              Here is the a battery data:
-              ${JSON.stringify(promptData, null, 2)}
-          
-              Return the alerts in a JSON format.
-              `,
-        });
-
+        const { output } = await displayAlertsPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
 
         if (!output) {
             throw new Error('No output from AI');

@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { generatePowerRecommendation } from '@/ai/flows/generate-power-recommendation';
-import { BrainCircuit } from 'lucide-react';
+import { BrainCircuit, Loader2 } from 'lucide-react';
 import type { BatteryDataPointWithDate } from '@/lib/types';
-import { useBatteryData } from '@/hooks/use-battery-data';
 
 interface PowerRecommendationProps {
   latestDataPoint: BatteryDataPointWithDate;
@@ -14,31 +14,28 @@ interface PowerRecommendationProps {
 
 export default function PowerRecommendation({ latestDataPoint }: PowerRecommendationProps) {
   const [recommendation, setRecommendation] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const { apiKey } = useBatteryData();
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
 
-  useEffect(() => {
-    async function getRecommendation() {
-      if (!latestDataPoint || !apiKey) return;
+  const getRecommendation = async () => {
+    if (!latestDataPoint) return;
 
-      setIsLoading(true);
-      try {
-        const result = await generatePowerRecommendation({
-            soc: latestDataPoint.soc,
-            power: latestDataPoint.power,
-            location: "Pahoa, HI", // Hardcoded for now
-            apiKey
-        });
-        setRecommendation(result.recommendation);
-      } catch (error) {
-        console.error("Failed to generate power recommendation:", error);
-        setRecommendation("Could not generate a recommendation at this time.");
-      } finally {
-        setIsLoading(false);
-      }
+    setIsLoading(true);
+    setHasGenerated(true);
+    try {
+      const result = await generatePowerRecommendation({
+          soc: latestDataPoint.soc,
+          power: latestDataPoint.power,
+          location: "Pahoa, HI", // Hardcoded for now
+      });
+      setRecommendation(result.recommendation);
+    } catch (error) {
+      console.error("Failed to generate power recommendation:", error);
+      setRecommendation("Could not generate a recommendation at this time.");
+    } finally {
+      setIsLoading(false);
     }
-    getRecommendation();
-  }, [latestDataPoint, apiKey]);
+  }
 
   return (
     <Card className="animate-fade-in-down shadow-lg hover:shadow-xl transition-shadow duration-300">
@@ -52,7 +49,15 @@ export default function PowerRecommendation({ latestDataPoint }: PowerRecommenda
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {!hasGenerated ? (
+          <div className="text-center">
+             <p className="text-sm text-muted-foreground mb-3">Get a power usage recommendation based on the weather.</p>
+            <Button onClick={getRecommendation} disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Get Recommendation
+            </Button>
+          </div>
+        ) : isLoading ? (
           <div className="space-y-2 pt-1">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-5/6" />

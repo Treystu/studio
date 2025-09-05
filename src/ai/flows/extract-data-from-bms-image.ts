@@ -1,30 +1,30 @@
 'use server';
 
 /**
- * @fileOverview Extracts key data points from a BMS screenshot using a vision model.
+ * @fileOverview Extracts key data points from BMS screenshots using a vision model.
  *
- * - extractDataFromBMSImage - A function that handles the data extraction process.
- * - ExtractDataFromBMSImageInput - The input type for the extractDataFromBMSImage function.
- * - ExtractDataFromBMSImageOutput - The return type for the extractDataFromBMSImage function.
+ * - extractDataFromBMSImages - A function that handles the data extraction process for multiple images.
+ * - ExtractDataFromBMSImagesInput - The input type for the function.
+ * - ExtractDataFromBMSImagesOutput - The return type for the function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/googleai';
+import { genkit } from 'genkit';
 
-const ExtractDataFromBMSImageInputSchema = z.object({
-  photoDataUri: z
+const ExtractDataFromBMSImagesInputSchema = z.object({
+  photoDataUris: z.array(
+    z
     .string()
     .describe(
       "A photo of a BMS screenshot, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
-    ),
-  apiKey: z.string().optional().describe('The Google AI API key.'),
+    ))
 });
-export type ExtractDataFromBMSImageInput = z.infer<typeof ExtractDataFromBMSImageInputSchema>;
+export type ExtractDataFromBMSImagesInput = z.infer<typeof ExtractDataFromBMSImagesInputSchema>;
 
-const ExtractDataFromBMSImageOutputSchema = z.object({
+const SingleBMSDataSchema = z.object({
   batteryId: z.string().describe('The unique identifier of the battery.'),
   soc: z.number().describe('The State of Charge of the battery (%).'),
   voltage: z.number().describe('The voltage of the battery (V).'),
@@ -41,69 +41,73 @@ const ExtractDataFromBMSImageOutputSchema = z.object({
   balanceStatus: z.string().describe('The balance status of the battery.'),
   timestamp: z.string().describe('The timestamp (date and time) from the screenshot.'),
 });
-export type ExtractDataFromBMSImageOutput = z.infer<typeof ExtractDataFromBMSImageOutputSchema>;
 
-export async function extractDataFromBMSImage(input: ExtractDataFromBMSImageInput): Promise<ExtractDataFromBMSImageOutput> {
-  return extractDataFromBMSImageFlow(input);
+const ExtractDataFromBMSImagesOutputSchema = z.object({
+    results: z.array(SingleBMSDataSchema)
+});
+export type ExtractDataFromBMSImagesOutput = z.infer<typeof ExtractDataFromBMSImagesOutputSchema>;
+
+
+const extractDataPrompt = ai.definePrompt({
+    name: 'extractDataPrompt',
+    input: { schema: ExtractDataFromBMSImagesInputSchema },
+    output: { schema: ExtractDataFromBMSImagesOutputSchema },
+    model: 'googleai/gemini-1.5-flash-latest',
+    prompt: `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.
+    
+      Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.
+  
+      For each image, extract:
+      - Battery ID: The unique identifier of the battery.
+      - State of Charge (SOC): (%)
+      - Voltage: (V)
+      - Current: (A)
+      - Remaining Capacity: (Ah)
+      - Max, Min, Avg Cell Voltage: (V)
+      - Cell Voltage Difference: (V)
+      - Cycle Count
+      - Power: (kW)
+      - MOS Charge & Discharge Status
+      - Balance Status
+      - Timestamp: (date and time) from the screenshot.
+  
+      Return all extracted data points in a single JSON object containing a "results" array.
+      
+      {{#each photoDataUris}}
+      {{media url=this}}
+      {{/each}}
+    `,
+});
+
+export async function extractDataFromBMSImages(input: ExtractDataFromBMSImagesInput): Promise<ExtractDataFromBMSImagesOutput> {
+  return extractDataFromBMSImagesFlow(input);
 }
 
-const extractDataFromBMSImageFlow = ai.defineFlow(
+const extractDataFromBMSImagesFlow = ai.defineFlow(
   {
-    name: 'extractDataFromBMSImageFlow',
-    inputSchema: ExtractDataFromBMSImageInputSchema,
-    outputSchema: ExtractDataFromBMSImageOutputSchema,
+    name: 'extractDataFromBMSImagesFlow',
+    inputSchema: ExtractDataFromBMSImagesInputSchema,
+    outputSchema: ExtractDataFromBMSImagesOutputSchema,
   },
   async input => {
-    logger.info('extractDataFromBMSImageFlow invoked.');
-    const { apiKey, photoDataUri } = input;
-    if (!apiKey) {
-      logger.error('API key is missing in extractDataFromBMSImageFlow');
-      throw new Error('API key is required.');
-    }
+    logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoDataUris.length} images.`);
     
-    try {
-        const localAi = genkit({
-          plugins: [googleAI({apiKey})],
-        });
+    if (!process.env.GEMINI_API_KEY) {
+        logger.error('API key is missing. Set GEMINI_API_KEY in your environment.');
+        throw new Error('Server is not configured with an API key.');
+    }
 
-        const { output } = await localAi.generate({
-            model: 'googleai/gemini-1.5-flash-latest',
-            output: { schema: ExtractDataFromBMSImageOutputSchema },
-            prompt: [
-              {text: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
-        
-              Analyze the provided screenshot and extract the following key data points. Ensure the extracted values are accurate and properly formatted. If a value is not present in the screenshot, return null for that field.
-          
-              - Battery ID: Extract the unique identifier of the battery.
-              - State of Charge (SOC): Extract the State of Charge of the battery (%).
-              - Voltage: Extract the voltage of the battery (V).
-              - Current: Extract the current of the battery (A).
-              - Remaining Capacity: Extract the remaining capacity of the battery (Ah).
-              - Max Cell Voltage: Extract the maximum cell voltage (V).
-              - Min Cell Voltage: Extract the minimum cell voltage (V).
-              - Avg Cell Voltage: Extract the average cell voltage (V).
-              - Cell Voltage Difference: Extract the difference between the maximum and minimum cell voltages (V).
-              - Cycle Count: Extract the number of charge cycles the battery has undergone.
-              - Power: Extract the power of the battery (kW).
-              - MOS Charge Status: Extract the status of the MOS (Metal-Oxide-Semiconductor) during charging (Charge/Discharge).
-              - MOS Discharge Status: Extract the status of the MOS (Metal-Oxide-Semiconductor) during discharging (Charge/Discharge).
-              - Balance Status: Extract the balance status of the battery.
-              - Timestamp: Extract the timestamp (date and time) from the screenshot.
-          
-              Return the extracted data in JSON format.
-            `},
-            {media: { url: photoDataUri }}
-          ]
-        });
+    try {
+        const { output } = await extractDataPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
         
         if (!output) {
           throw new Error('No output from AI');
         }
 
-        logger.info('extractDataFromBMSImageFlow successful.');
+        logger.info(`extractDataFromBMSImagesFlow successful. Extracted data for ${output.results.length} images.`);
         return output;
     } catch (e: any) {
-        logger.error('Error in extractDataFromBMSImageFlow generate call:', e);
+        logger.error('Error in extractDataFromBMSImagesFlow generate call:', e);
         throw e;
     }
   }

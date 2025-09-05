@@ -14,6 +14,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
+import {genkit, type GenkitOptions} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
@@ -32,30 +34,6 @@ export async function generateAlertSummary(input: GenerateAlertSummaryInput): Pr
   return generateAlertSummaryFlow(input);
 }
 
-const generateAlertSummaryPrompt = ai.definePrompt({
-    name: 'generateAlertSummaryPrompt',
-    model: 'gemini-pro',
-    input: {schema: z.object({alerts: z.array(z.string())})},
-    output: {schema: GenerateAlertSummaryOutputSchema},
-    prompt: `You are an AI assistant specializing in summarizing battery alerts.
-  
-      Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
-  
-      Alerts:
-      {{#each alerts}}- {{{this}}}
-      {{/each}}
-  
-      Summary:`,
-    config: {
-      safetySettings: [
-        {
-          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-          threshold: 'BLOCK_ONLY_HIGH',
-        },
-      ],
-    },
-  });
-
 const generateAlertSummaryFlow = ai.defineFlow(
   {
     name: 'generateAlertSummaryFlow',
@@ -71,7 +49,36 @@ const generateAlertSummaryFlow = ai.defineFlow(
     }
     
     try {
-        const {output} = await generateAlertSummaryPrompt(promptData, { apiKey });
+        const genkitOptions: GenkitOptions = {
+            plugins: [googleAI({apiKey})],
+        };
+        const configuredAi = genkit(genkitOptions);
+
+        const generateAlertSummaryPrompt = configuredAi.definePrompt({
+            name: 'generateAlertSummaryPrompt',
+            model: 'gemini-pro',
+            input: {schema: z.object({alerts: z.array(z.string())})},
+            output: {schema: GenerateAlertSummaryOutputSchema},
+            prompt: `You are an AI assistant specializing in summarizing battery alerts.
+          
+              Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
+          
+              Alerts:
+              {{#each alerts}}- {{{this}}}
+              {{/each}}
+          
+              Summary:`,
+            config: {
+              safetySettings: [
+                {
+                  category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                  threshold: 'BLOCK_ONLY_HIGH',
+                },
+              ],
+            },
+          });
+
+        const {output} = await generateAlertSummaryPrompt(promptData);
         logger.info('generateAlertSummaryFlow successful.');
         return output!;
     } catch (e: any) {

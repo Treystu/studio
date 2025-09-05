@@ -14,6 +14,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {logger} from '@/lib/logger';
+import {genkit, type GenkitOptions} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -37,39 +39,6 @@ export async function summarizeBatteryHealth(input: SummarizeBatteryHealthInput)
   return summarizeBatteryHealthFlow(input);
 }
 
-const summarizeBatteryHealthPrompt = ai.definePrompt({
-    name: 'summarizeBatteryHealthPrompt',
-    model: 'gemini-pro',
-    input: {schema: z.object({
-      batteryId: z.string(),
-      soc: z.number(),
-      voltage: z.number(),
-      current: z.number(),
-      maxCellVoltage: z.number().nullable(),
-      minCellVoltage: z.number().nullable(),
-      averageCellVoltage: z.number().nullable(),
-      cycleCount: z.number(),
-    })},
-    output: {schema: SummarizeBatteryHealthOutputSchema},
-    prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
-  
-      Based on the following battery data, provide a concise summary of the battery's current health status. Include key metrics such as SOC, voltage, and any significant deviations.
-      
-      If maxCellVoltage, minCellVoltage or averageCellVoltage are null, do not mention them in the summary or consider them as 0. Acknowledge that this data might be missing.
-  
-      Battery ID: {{{batteryId}}}
-      SOC: {{{soc}}}
-      Voltage: {{{voltage}}}
-      Current: {{{current}}}
-      Max Cell Voltage: {{{maxCellVoltage}}}
-      Min Cell Voltage: {{{minCellVoltage}}}
-      Average Cell Voltage: {{{averageCellVoltage}}}
-      Cycle Count: {{{cycleCount}}}
-  
-      Provide a summary that is easy to understand for a non-technical user.
-      `,
-  });
-
 const summarizeBatteryHealthFlow = ai.defineFlow(
   {
     name: 'summarizeBatteryHealthFlow',
@@ -85,7 +54,45 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
     }
     
     try {
-        const {output} = await summarizeBatteryHealthPrompt(promptData, { apiKey });
+        const genkitOptions: GenkitOptions = {
+            plugins: [googleAI({apiKey})],
+        };
+        const configuredAi = genkit(genkitOptions);
+
+        const summarizeBatteryHealthPrompt = configuredAi.definePrompt({
+            name: 'summarizeBatteryHealthPrompt',
+            model: 'gemini-pro',
+            input: {schema: z.object({
+              batteryId: z.string(),
+              soc: z.number(),
+              voltage: z.number(),
+              current: z.number(),
+              maxCellVoltage: z.number().nullable(),
+              minCellVoltage: z.number().nullable(),
+              averageCellVoltage: z.number().nullable(),
+              cycleCount: z.number(),
+            })},
+            output: {schema: SummarizeBatteryHealthOutputSchema},
+            prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
+          
+              Based on the following battery data, provide a concise summary of the battery's current health status. Include key metrics such as SOC, voltage, and any significant deviations.
+              
+              If maxCellVoltage, minCellVoltage or averageCellVoltage are null, do not mention them in the summary or consider them as 0. Acknowledge that this data might be missing.
+          
+              Battery ID: {{{batteryId}}}
+              SOC: {{{soc}}}
+              Voltage: {{{voltage}}}
+              Current: {{{current}}}
+              Max Cell Voltage: {{{maxCellVoltage}}}
+              Min Cell Voltage: {{{minCellVoltage}}}
+              Average Cell Voltage: {{{averageCellVoltage}}}
+              Cycle Count: {{{cycleCount}}}
+          
+              Provide a summary that is easy to understand for a non-technical user.
+              `,
+          });
+
+        const {output} = await summarizeBatteryHealthPrompt(promptData);
         logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
         return output!;
     } catch (e: any) {

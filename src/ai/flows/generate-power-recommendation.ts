@@ -137,7 +137,7 @@ const generatePowerRecommendationPrompt = ai.definePrompt({
     name: 'generatePowerRecommendationPrompt',
     input: { schema: GeneratePowerRecommendationInputSchema },
     output: { schema: GeneratePowerRecommendationOutputSchema },
-    model: 'googleai/gemini-2.5-pro-preview-05-06',
+    model: 'googleai/gemini-pro',
     tools: [getWeatherForecast, getSunriseSunsetTimes],
     prompt: `You are an expert power management AI for an off-grid battery system.
       Your goal is to provide a concise, actionable recommendation to the user.

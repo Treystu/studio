@@ -8,7 +8,7 @@
  *
  * - generateAlertSummary - A function that triggers the alert summary generation.
  * - GenerateAlertSummaryInput - The input type for the generateAlertSummary function, including a list of alerts.
- * - GenerateAlertSummaryOutput - The return type for the generateAlertSummary function, providing the summary.
+ * - GenerateAlertSummaryOutput - The return type for the generateAlertsummary function, providing the summary.
  */
 
 import {ai} from '@/ai/genkit';
@@ -32,7 +32,7 @@ const generateAlertSummaryPrompt = ai.definePrompt({
     name: 'generateAlertSummaryPrompt',
     input: { schema: GenerateAlertSummaryInputSchema },
     output: { schema: GenerateAlertSummaryOutputSchema },
-    model: 'googleai/gemini-2.5-pro-preview-05-06',
+    model: 'googleai/gemini-pro',
     prompt: `You are an AI assistant specializing in summarizing battery alerts.
   
       Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.

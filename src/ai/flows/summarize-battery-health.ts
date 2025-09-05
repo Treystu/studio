@@ -11,9 +11,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/googleai';
-
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -37,6 +34,29 @@ export async function summarizeBatteryHealth(input: SummarizeBatteryHealthInput)
   return summarizeBatteryHealthFlow(input);
 }
 
+const summarizeBatteryHealthPrompt = ai.definePrompt({
+    name: 'summarizeBatteryHealthPrompt',
+    input: { schema: SummarizeBatteryHealthInputSchema },
+    output: { schema: SummarizeBatteryHealthOutputSchema },
+    model: 'googleai/gemini-1.5-flash-latest',
+    prompt: `You are an AI assistant specializing in summarizing battery health.
+          
+      Based on the provided data, generate a concise summary of the battery's overall health. Focus on translating the metrics into an easy-to-understand assessment for a non-technical user. Mention key indicators like cell balance (from voltage differences) and age (from cycle count).
+  
+      Here is the battery data:
+      Battery ID: {{{batteryId}}}
+      SOC: {{{soc}}}
+      Voltage: {{{voltage}}}
+      Current: {{{current}}}
+      Max Cell Voltage: {{{maxCellVoltage}}}
+      Min Cell Voltage: {{{minCellVoltage}}}
+      Average Cell Voltage: {{{averageCellVoltage}}}
+      Cycle Count: {{{cycleCount}}}
+  
+      Return the summary in JSON format.
+      `,
+});
+
 const summarizeBatteryHealthFlow = ai.defineFlow(
   {
     name: 'summarizeBatteryHealthFlow',
@@ -52,32 +72,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
     }
 
     try {
-        const localAi = genkit({
-            plugins: [googleAI({ apiKey })],
-        });
-
-        const { output } = await localAi.generate({
-            model: 'gemini-1.5-flash-latest',
-            prompt: `You are an AI assistant specializing in summarizing battery health.
-          
-              Based on the provided data, generate a concise summary of the battery's overall health. Focus on translating the metrics into an easy-to-understand assessment for a non-technical user. Mention key indicators like cell balance (from voltage differences) and age (from cycle count).
-          
-              Here is the battery data:
-              Battery ID: ${promptData.batteryId}
-              SOC: ${promptData.soc}
-              Voltage: ${promptData.voltage}
-              Current: ${promptData.current}
-              Max Cell Voltage: ${promptData.maxCellVoltage}
-              Min Cell Voltage: ${promptData.minCellVoltage}
-              Average Cell Voltage: ${promptData.averageCellVoltage}
-              Cycle Count: ${promptData.cycleCount}
-          
-              Return the summary in JSON format.
-              `,
-            output: {
-                schema: SummarizeBatteryHealthOutputSchema
-            }
-        });
+        const { output } = await summarizeBatteryHealthPrompt(promptData, { auth: { apiKey } });
         
         if (!output) {
             throw new Error('No output from AI');

@@ -43,7 +43,7 @@ class Logger {
         };
         
         this.isInitialized = true;
-        this.info(`Logger initialized. Verbose mode is permanently enabled.`);
+        this.info(`Logger initialized.`);
     }
 
     private addLog(level: LogEntry['level'], args: any[]) {

@@ -51,10 +51,9 @@ const initialState: State = {
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.info(`ACTION: ${action.type}`, action.payload ? JSON.parse(JSON.stringify(action.payload)) : '');
   switch (action.type) {
     case 'START_LOADING':
-       logger.info(`Upload started: ${action.payload.totalFiles} files`);
+      logger.info(`Upload started: ${action.payload.totalFiles} files`);
       return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
@@ -415,5 +414,3 @@ export const useBatteryData = () => {
     clearCurrentBatteryData,
   };
 };
-
-    

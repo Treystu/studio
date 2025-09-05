@@ -9,8 +9,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { genkit, APIError } from 'genkit';
-import { googleAI } from '@genkit-ai/googleai';
+import { APIError } from 'genkit';
 import { logger } from '@/lib/logger';
 
 // == Weather Tool Definition (Co-located) == //
@@ -135,6 +134,31 @@ export async function generatePowerRecommendation(input: GeneratePowerRecommenda
   return generatePowerRecommendationFlow(input);
 }
 
+const generatePowerRecommendationPrompt = ai.definePrompt({
+    name: 'generatePowerRecommendationPrompt',
+    input: { schema: GeneratePowerRecommendationInputSchema },
+    output: { schema: GeneratePowerRecommendationOutputSchema },
+    model: 'googleai/gemini-1.5-flash-latest',
+    tools: [getWeatherForecast, getSunriseSunsetTimes],
+    prompt: `You are an expert power management AI for an off-grid battery system.
+      Your goal is to provide a concise, actionable recommendation to the user.
+      
+      Analyze the current battery status, the weather forecast for the next 3 days, and the sunrise/sunset times.
+      
+      Based on the State of Charge (SOC), current power draw, and upcoming sun exposure (using the sun_hours field), provide a single, clear recommendation.
+      - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").
+      - If the SOC is low and cloudy weather is coming, recommend conserving power or running a generator.
+      - If the SOC is moderate, give a balanced recommendation.
+      - Frame the recommendation in a single, easy-to-understand sentence. Be friendly and encouraging.
+      
+      Current Battery Status:
+      - State of Charge (SOC): {{{soc}}}%
+      - Current Power: {{{power}}} kW ({{#if (gt power 0)}}Discharging{{else}}Charging{{/if}})
+      
+      The user is located in {{{location}}}. Use the available tools to get the upcoming weather and today's sunrise/sunset times.
+    `,
+});
+
 const generatePowerRecommendationFlow = ai.defineFlow(
   {
     name: 'generatePowerRecommendationFlow',
@@ -150,34 +174,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
     }
     
     try {
-      const localAi = genkit({
-        plugins: [googleAI({ apiKey })],
-      });
-
-      const { output } = await localAi.generate({
-        model: 'gemini-1.5-flash-latest',
-        tools: [getWeatherForecast, getSunriseSunsetTimes],
-        prompt: `You are an expert power management AI for an off-grid battery system.
-          Your goal is to provide a concise, actionable recommendation to the user.
-          
-          Analyze the current battery status, the weather forecast for the next 3 days, and the sunrise/sunset times.
-          
-          Based on the State of Charge (SOC), current power draw, and upcoming sun exposure (using the sun_hours field), provide a single, clear recommendation.
-          - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").
-          - If the SOC is low and cloudy weather is coming, recommend conserving power or running a generator.
-          - If the SOC is moderate, give a balanced recommendation.
-          - Frame the recommendation in a single, easy-to-understand sentence. Be friendly and encouraging.
-          
-          Current Battery Status:
-          - State of Charge (SOC): ${promptData.soc.toFixed(1)}%
-          - Current Power: ${promptData.power.toFixed(2)} kW (${promptData.power > 0 ? "Discharging" : "Charging"})
-          
-          The user is located in ${promptData.location}. Use the available tools to get the upcoming weather and today's sunrise/sunset times.
-        `,
-        output: {
-          schema: GeneratePowerRecommendationOutputSchema
-        }
-      });
+      const { output } = await generatePowerRecommendationPrompt(promptData, { auth: { apiKey } });
 
       if (!output) {
         throw new Error('No output from AI');

@@ -8,7 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { genkit, APIError } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
@@ -88,6 +88,33 @@ const getWeatherForecast = ai.defineTool(
   }
 );
 
+// == Sunrise/Sunset Tool Definition == //
+const sunTimesSchema = z.object({
+    sunrise: z.string().describe("Today's sunrise time in HH:MM AM/PM format."),
+    sunset: z.string().describe("Today's sunset time in HH:MM AM/PM format."),
+});
+
+const getSunriseSunsetTimes = ai.defineTool(
+    {
+        name: 'getSunriseSunsetTimes',
+        description: 'Returns the sunrise and sunset times for a given location and date.',
+        inputSchema: z.object({
+            location: z.string().describe('The city and state, e.g. Pahoa, HI'),
+        }),
+        outputSchema: sunTimesSchema,
+    },
+    async ({ location }) => {
+        logger.info(`Getting sunrise/sunset for ${location}`);
+        // In a real app, you would call a real API.
+        // For this example, we return mock data.
+        if (location.toLowerCase().includes('pahoa')) {
+            return { sunrise: '6:15 AM', sunset: '6:45 PM' };
+        }
+        // Default values
+        return { sunrise: '6:30 AM', sunset: '7:30 PM' };
+    }
+);
+
 
 // == Power Recommendation Flow == //
 
@@ -129,11 +156,11 @@ const generatePowerRecommendationFlow = ai.defineFlow(
 
       const { output } = await localAi.generate({
         model: 'gemini-pro',
-        tools: [getWeatherForecast],
+        tools: [getWeatherForecast, getSunriseSunsetTimes],
         prompt: `You are an expert power management AI for an off-grid battery system.
           Your goal is to provide a concise, actionable recommendation to the user.
           
-          Analyze the current battery status and the weather forecast for the next 3 days.
+          Analyze the current battery status, the weather forecast for the next 3 days, and the sunrise/sunset times.
           
           Based on the State of Charge (SOC), current power draw, and upcoming sun exposure, provide a single, clear recommendation.
           - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").
@@ -145,7 +172,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
           - State of Charge (SOC): ${promptData.soc.toFixed(1)}%
           - Current Power: ${promptData.power.toFixed(2)} kW (${promptData.power > 0 ? "Discharging" : "Charging"})
           
-          The user is located in ${promptData.location}. Use the getWeatherForecast tool to get the upcoming weather.
+          The user is located in ${promptData.location}. Use the available tools to get the upcoming weather and today's sunrise/sunset times.
         `,
         output: {
           schema: GeneratePowerRecommendationOutputSchema

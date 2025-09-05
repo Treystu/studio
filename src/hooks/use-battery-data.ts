@@ -176,8 +176,8 @@ export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { toast } = useToast();
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isAiRunning = useRef(false);
   const isProcessingQueue = useRef(false);
+  const isAiRunning = useRef(false);
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
   const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
   const [apiKey, setApiKey] = useState<string | null>(null);

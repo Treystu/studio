@@ -14,8 +14,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {logger} from '@/lib/logger';
-import {genkit, type GenkitOptions} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -57,24 +55,9 @@ const displayAlertsFlow = ai.defineFlow(
     }
     
     try {
-        const genkitOptions: GenkitOptions = {
-            plugins: [googleAI({apiKey})],
-        };
-        const configuredAi = genkit(genkitOptions);
-
-        const displayAlertsPrompt = configuredAi.definePrompt({
-            name: 'displayAlertsPrompt',
-            model: 'gemini-pro',
-            input: {schema: z.object({
-              batteryId: z.string(),
-              soc: z.number(),
-              voltage: z.number(),
-              current: z.number(),
-              maxCellVoltage: z.number().nullable(),
-              minCellVoltage: z.number().nullable(),
-              averageCellVoltage: z.number().nullable(),
-            })},
-            output: {schema: DisplayAlertsOutputSchema},
+        const { output } = await ai.generate({
+            model: 'googleai/gemini-pro',
+            apiKey,
             prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
           
               Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
@@ -86,21 +69,23 @@ const displayAlertsFlow = ai.defineFlow(
               Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
           
               Here is the a battery data:
-              Battery ID: {{{batteryId}}}
-              SOC: {{{soc}}}
-              Voltage: {{{voltage}}}
-              Current: {{{current}}}
-              Max Cell Voltage: {{{maxCellVoltage}}}
-              Min Cell Voltage: {{{minCellVoltage}}}
-              Average Cell Voltage: {{{averageCellVoltage}}}
+              Battery ID: ${promptData.batteryId}
+              SOC: ${promptData.soc}
+              Voltage: ${promptData.voltage}
+              Current: ${promptData.current}
+              Max Cell Voltage: ${promptData.maxCellVoltage}
+              Min Cell Voltage: ${promptData.minCellVoltage}
+              Average Cell Voltage: ${promptData.averageCellVoltage}
           
               Return the alerts in a JSON format.
               `,
+            output: {
+                schema: DisplayAlertsOutputSchema
+            }
         });
 
-        const {output} = await displayAlertsPrompt(promptData);
         logger.info('displayAlertsFlow successful for:', input.batteryId);
-        return output!;
+        return output;
     } catch (e: any) {
         logger.error('FATAL: Error in displayAlertsFlow generate call:', e);
         throw e;

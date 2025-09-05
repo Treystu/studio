@@ -163,63 +163,63 @@ export const useBatteryData = () => {
     // Flag to track if data was added, to trigger AI calls later
     let dataAdded = false;
 
-    try {
-      for (const [index, file] of files.entries()) {
-        const baseProgress = (index / totalFiles) * 100;
-        let fileDateContext = dateContext;
+    for (const [index, file] of files.entries()) {
+      const baseProgress = (index / totalFiles) * 100;
+      let fileDateContext = dateContext;
 
-        const dateFromFilename = parseDateFromFilename(file.name);
-        if (dateFromFilename) {
-            fileDateContext = dateFromFilename;
-        }
-        
-        try {
-          const reader = new FileReader();
-          const dataUri = await new Promise<string>((resolve, reject) => {
-            reader.onload = e => resolve(e.target?.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          
-          const progressAfterRead = baseProgress + (1 / totalFiles) * 100 * 0.3; // 30% of file progress
-          dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterRead, processed: index } });
-
-          const extractedData = await extractDataFromBMSImage({ photoDataUri: dataUri });
-          
-          const progressAfterExtract = baseProgress + (1 / totalFiles) * 100 * 0.9; // 90% of file progress
-          dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterExtract, processed: index } });
-          
-          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload: state.currentBatteryId === null && index === 0 } });
-          successfulUploads++;
-          dataAdded = true;
-
-        } catch (error) {
-          console.error('Error processing file:', file.name, error);
-          toast({
-            variant: 'destructive',
-            title: `Error processing ${file.name}`,
-            description: 'Could not extract data from the image.',
-          });
-        } finally {
-            const finalProgress = ((index + 1) / totalFiles) * 100;
-            dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: finalProgress, processed: index + 1 } });
-        }
+      const dateFromFilename = parseDateFromFilename(file.name);
+      if (dateFromFilename) {
+          fileDateContext = dateFromFilename;
       }
-    } finally {
-      dispatch({ type: 'STOP_LOADING' });
-      // Use a timeout to allow the progress bar to reach 100% and be visible.
-      setTimeout(() => {
-        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: null, processed: 0 } });
-        dispatch({type: 'START_LOADING', payload: {totalFiles: 0}}) // Reset total files
+      
+      try {
+        const reader = new FileReader();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          reader.onload = e => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
         
-        if (successfulUploads > 0) {
-            toast({
-                title: 'Upload Complete',
-                description: `${successfulUploads}/${totalFiles} file(s) processed successfully.`,
-              });
-        }
-      }, 1000);
+        const progressAfterRead = baseProgress + (1 / totalFiles) * 100 * 0.3; // 30% of file progress
+        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterRead, processed: index } });
+
+        const extractedData = await extractDataFromBMSImage({ photoDataUri: dataUri });
+        
+        const progressAfterExtract = baseProgress + (1 / totalFiles) * 100 * 0.9; // 90% of file progress
+        dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterExtract, processed: index } });
+        
+        const isFirstUpload = state.currentBatteryId === null && index === 0;
+        dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
+        successfulUploads++;
+        dataAdded = true;
+
+      } catch (error) {
+        console.error('Error processing file:', file.name, error);
+        toast({
+          variant: 'destructive',
+          title: `Error processing ${file.name}`,
+          description: 'Could not extract data from the image.',
+        });
+      } finally {
+          const finalProgress = ((index + 1) / totalFiles) * 100;
+          dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: finalProgress, processed: index + 1 } });
+      }
     }
+
+    dispatch({ type: 'STOP_LOADING' });
+    // Use a timeout to allow the progress bar to reach 100% and be visible.
+    setTimeout(() => {
+      dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: null, processed: 0 } });
+      dispatch({type: 'START_LOADING', payload: {totalFiles: 0}}) // Reset total files
+      
+      if (successfulUploads > 0) {
+          toast({
+              title: 'Upload Complete',
+              description: `${successfulUploads}/${totalFiles} file(s) processed successfully.`,
+            });
+      }
+    }, 1000);
+
   }, [toast, state.currentBatteryId]);
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {

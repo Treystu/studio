@@ -95,15 +95,7 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
             ],
             output: {
                 schema: ExtractDataFromBMSImageOutputSchema
-            },
-            config: {
-                safetySettings: [
-                  {
-                    category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                    threshold: 'BLOCK_ONLY_HIGH',
-                  },
-                ],
-            },
+            }
         });
         
         if (!output) {

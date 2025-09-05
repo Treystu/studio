@@ -65,15 +65,7 @@ const generateAlertSummaryFlow = ai.defineFlow(
               Summary:`,
             output: {
                 schema: GenerateAlertSummaryOutputSchema
-            },
-            config: {
-              safetySettings: [
-                {
-                  category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                  threshold: 'BLOCK_ONLY_HIGH',
-                },
-              ],
-            },
+            }
         });
         
         if (!output) {

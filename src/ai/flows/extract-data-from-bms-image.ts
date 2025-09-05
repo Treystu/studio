@@ -12,6 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
+import {genkit} from 'genkit';
 
 const ExtractDataFromBMSImageInputSchema = z.object({
   photoDataUri: z
@@ -97,18 +98,20 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in extractDataFromBMSImageFlow');
       throw new Error('API key is required.');
     }
-    const model = googleAI({ apiKey });
+    
+    const configuredAi = genkit({
+        plugins: [googleAI({apiKey})],
+    });
 
     try {
-      const { output } = await ai.generate({
+      const { output } = await configuredAi.generate({
         prompt,
-        model,
         input: promptData,
       });
       logger.info('extractDataFromBMSImageFlow successful.');
       return output!;
-    } catch (e) {
-      logger.error('Error in extractDataFromBMSImageFlow:', e);
+    } catch (e: any) {
+      logger.error('FATAL: Error in extractDataFromBMSImageFlow generate call:', e.message, e.stack);
       throw e;
     }
   }

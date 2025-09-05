@@ -14,6 +14,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import {logger} from '@/lib/logger';
+import {genkit} from 'genkit';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -54,7 +55,7 @@ const displayAlertsPrompt = ai.definePrompt({
 
   Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
 
-  Here is the battery data:
+  Here is the a battery data:
   Battery ID: {{{batteryId}}}
   SOC: {{{soc}}}
   Voltage: {{{voltage}}}
@@ -80,18 +81,20 @@ const displayAlertsFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in displayAlertsFlow');
       throw new Error('API key is required.');
     }
-    const model = googleAI({apiKey});
+    
+    const configuredAi = genkit({
+        plugins: [googleAI({apiKey})],
+    });
 
     try {
-        const {output} = await ai.generate({
+        const {output} = await configuredAi.generate({
             prompt: displayAlertsPrompt,
-            model,
             input: promptData,
         });
         logger.info('displayAlertsFlow successful for:', input.batteryId);
         return output!;
-    } catch (e) {
-        logger.error('Error in displayAlertsFlow:', e);
+    } catch (e: any) {
+        logger.error('FATAL: Error in displayAlertsFlow generate call:', e.message, e.stack);
         throw e;
     }
   }

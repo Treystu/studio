@@ -14,7 +14,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
-
+import {genkit} from 'genkit';
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -83,18 +83,20 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in summarizeBatteryHealthFlow');
       throw new Error('API key is required.');
     }
-    const model = googleAI({ apiKey });
+    
+    const configuredAi = genkit({
+        plugins: [googleAI({apiKey})],
+    });
 
     try {
-        const {output} = await ai.generate({
+        const {output} = await configuredAi.generate({
             prompt: summarizeBatteryHealthPrompt,
-            model,
             input: promptData,
         });
         logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
         return output!;
-    } catch (e) {
-        logger.error('Error in summarizeBatteryHealthFlow:', e);
+    } catch (e: any) {
+        logger.error('FATAL: Error in summarizeBatteryHealthFlow generate call:', e.message, e.stack);
         throw e;
     }
   }

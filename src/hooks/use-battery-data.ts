@@ -233,6 +233,8 @@ export const useBatteryData = () => {
     } catch (error: any) {
         logger.error(`Error processing file: ${file.name}`, error);
         const errorMessage = error.message || "An unknown error occurred.";
+        const errorStack = error.stack || "No stack trace available.";
+        logger.error(`Full error details:`, {errorMessage, errorStack, cause: error.cause});
 
         if (error.cause && error.cause.status) {
             logger.error(`Server responded with status: ${error.cause.status}`);
@@ -241,7 +243,8 @@ export const useBatteryData = () => {
         toast({
             variant: 'destructive',
             title: `Error processing ${file.name}`,
-            description: `Could not extract data. ${errorMessage}`,
+            description: `Could not extract data. ${errorMessage}. Check logs for details.`,
+            duration: 10000,
         });
         
         if (errorMessage.includes('429') || errorMessage.includes('quota')) {

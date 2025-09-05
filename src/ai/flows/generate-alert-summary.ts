@@ -14,6 +14,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
+import {genkit} from 'genkit';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
@@ -68,18 +69,20 @@ const generateAlertSummaryFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in generateAlertSummaryFlow');
       throw new Error('API key is required.');
     }
-    const model = googleAI({ apiKey });
+    
+    const configuredAi = genkit({
+        plugins: [googleAI({apiKey})],
+    });
     
     try {
-        const {output} = await ai.generate({
+        const {output} = await configuredAi.generate({
             prompt: generateAlertSummaryPrompt,
-            model,
             input: promptData,
         });
         logger.info('generateAlertSummaryFlow successful.');
         return output!;
-    } catch (e) {
-        logger.error('Error in generateAlertSummaryFlow:', e);
+    } catch (e: any) {
+        logger.error('FATAL: Error in generateAlertSummaryFlow generate call:', e.message, e.stack);
         throw e;
     }
   }

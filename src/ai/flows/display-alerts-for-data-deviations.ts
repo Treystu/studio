@@ -71,11 +71,6 @@ const displayAlertsFlow = ai.defineFlow(
   async input => {
     logger.info('displayAlertsFlow invoked with input for battery:', input.batteryId);
     
-    if (!process.env.GEMINI_API_KEY) {
-        logger.error('API key is missing. Set GEMINI_API_KEY in your environment.');
-        throw new Error('Server is not configured with an API key.');
-    }
-
     const { output } = await displayAlertsPrompt(input);
 
     if (!output) {

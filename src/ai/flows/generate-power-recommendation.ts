@@ -166,11 +166,6 @@ const generatePowerRecommendationFlow = ai.defineFlow(
   async (input) => {
     logger.info('generatePowerRecommendationFlow invoked with input:', input);
 
-    if (!process.env.GEMINI_API_KEY) {
-      logger.error('API key is missing in generatePowerRecommendationFlow');
-      throw new Error('Server is not configured with an API key.');
-    }
-    
     const { output } = await generatePowerRecommendationPrompt(input);
 
     if (!output) {

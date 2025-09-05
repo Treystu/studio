@@ -58,11 +58,6 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
   async input => {
     logger.info('summarizeBatteryHealthFlow invoked for battery:', input.batteryId);
     
-    if (!process.env.GEMINI_API_KEY) {
-        logger.error('API key is missing. Set GEMINI_API_KEY in your environment.');
-        throw new Error('Server is not configured with an API key.');
-    }
-
     const { output } = await summarizeBatteryHealthPrompt(input);
     
     if (!output) {

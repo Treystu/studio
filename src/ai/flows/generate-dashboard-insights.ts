@@ -85,10 +85,6 @@ const generateDashboardInsightsFlow = ai.defineFlow(
   },
   async input => {
     logger.info('generateDashboardInsightsFlow invoked with input:', input);
-    if (!process.env.GEMINI_API_KEY) {
-      logger.error('API key is missing in generateDashboardInsightsFlow');
-      throw new Error('Server is not configured with an API key.');
-    }
 
     const {output} = await insightsPrompt(input);
     if (!output) {

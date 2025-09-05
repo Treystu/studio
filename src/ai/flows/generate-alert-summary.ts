@@ -47,7 +47,7 @@ const generateAlertSummaryFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in generateAlertSummaryFlow');
       throw new Error('API key is required.');
     }
-    logger.info(`generateAlertSummaryFlow received API Key: ${apiKey.substring(0, 5)}...`);
+    logger.info(`generateAlertSummaryFlow received API Key: ${apiKey}`);
     
     try {
         const localAi = genkit({

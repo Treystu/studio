@@ -51,6 +51,7 @@ const initialState: State = {
 };
 
 const reducer = (state: State, action: Action): State => {
+  logger.info(`ACTION: ${action.type}`, action);
   switch (action.type) {
     case 'START_LOADING':
       logger.info(`START_LOADING: ${action.payload.totalFiles} files`);
@@ -200,9 +201,9 @@ export const useBatteryData = () => {
   }, []);
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
-     logger.info(`PROCESS FILE START: ${file.name}`);
+     logger.info(`HYPER-VERBOSE: PROCESS FILE START: ${file.name}`);
      if (!apiKey) {
-      logger.error("PROCESS FILE ABORTED: API Key not available.");
+      logger.error("HYPER-VERBOSE: PROCESS FILE ABORTED: API Key not available.");
       toast({
         variant: "destructive",
         title: "API Key Required",
@@ -213,7 +214,7 @@ export const useBatteryData = () => {
 
     try {
         const fileDateContext = parseDateFromFilename(file.name) || dateContext;
-        logger.info(`Processing file: ${file.name}`, { 
+        logger.info(`HYPER-VERBOSE: Processing file: ${file.name}`, { 
             filenameDate: parseDateFromFilename(file.name)?.toISOString(),
             contextDate: dateContext.toISOString(),
             finalDate: fileDateContext.toISOString()
@@ -226,15 +227,16 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
         
-        logger.info(`File converted to data URI. Size: ${dataUri.length}. Calling 'extractDataFromBMSImage' AI flow...`, {filename: file.name});
+        logger.info(`HYPER-VERBOSE: File converted to data URI. Size: ${dataUri.length}. Calling 'extractDataFromBMSImage' AI flow...`, {filename: file.name});
         const payload = { photoDataUri: dataUri, apiKey };
+        logger.info('HYPER-VERBOSE: Payload to be sent to AI Flow:', { ...payload, photoDataUri: `${payload.photoDataUri.substring(0, 50)}...`, apiKey: `...${payload.apiKey.slice(-4)}` });
         const extractedData = await extractDataFromBMSImage(payload);
-        logger.info("AI flow 'extractDataFromBMSImage' successful. Extracted data:", extractedData);
+        logger.info("HYPER-VERBOSE: AI flow 'extractDataFromBMSImage' successful. Extracted data:", extractedData);
 
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         return true;
     } catch (error: any) {
-        logger.error(`Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
+        logger.error(`HYPER-VERBOSE: Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
 
         toast({
             variant: 'destructive',
@@ -244,7 +246,7 @@ export const useBatteryData = () => {
         });
         return false;
     } finally {
-        logger.info(`PROCESS FILE END: ${file.name}`);
+        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
     }
   }
 

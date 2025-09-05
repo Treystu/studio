@@ -13,9 +13,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
-import {genkit} from 'genkit';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
@@ -34,6 +32,29 @@ export async function generateAlertSummary(input: GenerateAlertSummaryInput): Pr
   return generateAlertSummaryFlow(input);
 }
 
+const generateAlertSummaryPrompt = ai.definePrompt({
+    name: 'generateAlertSummaryPrompt',
+    input: {schema: z.object({alerts: z.array(z.string())})},
+    output: {schema: GenerateAlertSummaryOutputSchema},
+    prompt: `You are an AI assistant specializing in summarizing battery alerts.
+  
+      Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
+  
+      Alerts:
+      {{#each alerts}}- {{{this}}}
+      {{/each}}
+  
+      Summary:`,
+    config: {
+      safetySettings: [
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          threshold: 'BLOCK_ONLY_HIGH',
+        },
+      ],
+    },
+  });
+
 const generateAlertSummaryFlow = ai.defineFlow(
   {
     name: 'generateAlertSummaryFlow',
@@ -48,39 +69,12 @@ const generateAlertSummaryFlow = ai.defineFlow(
       throw new Error('API key is required.');
     }
     
-    const configuredAi = genkit({
-        plugins: [googleAI({apiKey})],
-    });
-    
-    const generateAlertSummaryPrompt = configuredAi.definePrompt({
-        name: 'generateAlertSummaryPrompt',
-        input: {schema: z.object({alerts: z.array(z.string())})},
-        output: {schema: GenerateAlertSummaryOutputSchema},
-        prompt: `You are an AI assistant specializing in summarizing battery alerts.
-      
-          Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
-      
-          Alerts:
-          {{#each alerts}}- {{{this}}}
-          {{/each}}
-      
-          Summary:`,
-        config: {
-          safetySettings: [
-            {
-              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-              threshold: 'BLOCK_ONLY_HIGH',
-            },
-          ],
-        },
-      });
-
     try {
-        const {output} = await generateAlertSummaryPrompt(promptData);
+        const {output} = await generateAlertSummaryPrompt(promptData, { apiKey });
         logger.info('generateAlertSummaryFlow successful.');
         return output!;
     } catch (e: any) {
-        logger.error('FATAL: Error in generateAlertSummaryFlow generate call:', e.message, e.stack);
+        logger.error('FATAL: Error in generateAlertSummaryFlow generate call:', e);
         throw e;
     }
   }

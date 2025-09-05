@@ -13,9 +13,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
 import {logger} from '@/lib/logger';
-import {genkit} from 'genkit';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -42,6 +40,41 @@ export async function displayAlertsForDataDeviations(
   return displayAlertsFlow(input);
 }
 
+const displayAlertsPrompt = ai.definePrompt({
+    name: 'displayAlertsPrompt',
+    input: {schema: z.object({
+      batteryId: z.string(),
+      soc: z.number(),
+      voltage: z.number(),
+      current: z.number(),
+      maxCellVoltage: z.number().nullable(),
+      minCellVoltage: z.number().nullable(),
+      averageCellVoltage: z.number().nullable(),
+    })},
+    output: {schema: DisplayAlertsOutputSchema},
+    prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
+  
+      Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
+      1. A rapid drop in SOC (State of Charge).
+      2. A high voltage difference between cells (maxCellVoltage - minCellVoltage).
+  
+      If maxCellVoltage or minCellVoltage are null or 0, do not generate an alert for cell voltage inconsistency. Only generate alerts for valid, non-zero voltage readings that indicate a problem.
+  
+      Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
+  
+      Here is the a battery data:
+      Battery ID: {{{batteryId}}}
+      SOC: {{{soc}}}
+      Voltage: {{{voltage}}}
+      Current: {{{current}}}
+      Max Cell Voltage: {{{maxCellVoltage}}}
+      Min Cell Voltage: {{{minCellVoltage}}}
+      Average Cell Voltage: {{{averageCellVoltage}}}
+  
+      Return the alerts in a JSON format.
+      `,
+});
+
 const displayAlertsFlow = ai.defineFlow(
   {
     name: 'displayAlertsFlow',
@@ -56,43 +89,12 @@ const displayAlertsFlow = ai.defineFlow(
       throw new Error('API key is required.');
     }
     
-    const configuredAi = genkit({
-        plugins: [googleAI({apiKey})],
-    });
-    
-    const displayAlertsPrompt = configuredAi.definePrompt({
-        name: 'displayAlertsPrompt',
-        input: {schema: DisplayAlertsInputSchema},
-        output: {schema: DisplayAlertsOutputSchema},
-        prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
-      
-          Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
-          1. A rapid drop in SOC (State of Charge).
-          2. A high voltage difference between cells (maxCellVoltage - minCellVoltage).
-      
-          If maxCellVoltage or minCellVoltage are null or 0, do not generate an alert for cell voltage inconsistency. Only generate alerts for valid, non-zero voltage readings that indicate a problem.
-      
-          Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
-      
-          Here is the a battery data:
-          Battery ID: {{{batteryId}}}
-          SOC: {{{soc}}}
-          Voltage: {{{voltage}}}
-          Current: {{{current}}}
-          Max Cell Voltage: {{{maxCellVoltage}}}
-          Min Cell Voltage: {{{minCellVoltage}}}
-          Average Cell Voltage: {{{averageCellVoltage}}}
-      
-          Return the alerts in a JSON format.
-          `,
-    });
-
     try {
-        const {output} = await displayAlertsPrompt(promptData);
+        const {output} = await displayAlertsPrompt(promptData, { apiKey });
         logger.info('displayAlertsFlow successful for:', input.batteryId);
         return output!;
     } catch (e: any) {
-        logger.error('FATAL: Error in displayAlertsFlow generate call:', e.message, e.stack);
+        logger.error('FATAL: Error in displayAlertsFlow generate call:', e);
         throw e;
     }
   }

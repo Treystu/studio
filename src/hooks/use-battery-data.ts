@@ -9,8 +9,6 @@ import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
 import { generateAlertSummary } from '@/ai/flows/generate-alert-summary';
 import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
-import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/googleai';
 
 const API_KEY_STORAGE_KEY = "gemini_api_key";
 
@@ -77,7 +75,6 @@ const reducer = (state: State, action: Action): State => {
       const timeParts = data.timestamp.split(':').map(Number);
 
       const newTimestamp = new Date(dateContext);
-      // If dateContext has a time component from filename, it will be used. Otherwise, use time from screenshot.
       if (newTimestamp.getHours() === 0 && newTimestamp.getMinutes() === 0 && newTimestamp.getSeconds() === 0) {
         newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
       }
@@ -112,9 +109,7 @@ const reducer = (state: State, action: Action): State => {
             const newValue = newAveragedDataPoint[key] as number;
             (averagedPoint[key] as number) = (existingValue * existingCount + newValue) / newTotalCount;
           } else if (newAveragedDataPoint[key] !== null && newAveragedDataPoint[key] !== undefined) {
-             // For non-numeric or new nullable fields, prefer the new data if it's not null.
-             // @ts-ignore
-            averagedPoint[key] = newAveragedDataPoint[key];
+             (averagedPoint as any)[key] = newAveragedDataPoint[key];
           }
         });
         
@@ -181,8 +176,8 @@ export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { toast } = useToast();
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAiRunning = useRef(false);
   const isProcessingQueue = useRef(false);
-  const isAiRunning = useRef(isProcessingQueue.current);
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
   const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
   const [apiKey, setApiKey] = useState<string | null>(null);
@@ -206,17 +201,14 @@ export const useBatteryData = () => {
         title: "API Key Required",
         description: "Please set your Gemini API key in the settings before uploading files.",
       });
-      dispatch({ type: 'RESET_UPLOAD_STATE' });
       return false; 
     }
 
     try {
         logger.info(`Processing file: ${file.name}`);
-        let fileDateContext = dateContext;
-        const dateFromFilename = parseDateFromFilename(file.name);
-        if (dateFromFilename) {
-            fileDateContext = dateFromFilename;
-            logger.info(`Date parsed from filename: ${dateFromFilename.toISOString()}`);
+        const fileDateContext = parseDateFromFilename(file.name) || dateContext;
+        if (parseDateFromFilename(file.name)) {
+            logger.info(`Date parsed from filename: ${fileDateContext.toISOString()}`);
         } else {
             logger.info(`No date in filename, using date picker context: ${dateContext.toISOString()}`);
         }
@@ -244,15 +236,6 @@ export const useBatteryData = () => {
             description: `Could not extract data. Check logs for details.`,
             duration: 10000,
         });
-        
-        if (error.message && (error.message.includes('429') || error.message.includes('quota'))) {
-             toast({
-                variant: 'destructive',
-                title: 'API Rate limit reached',
-                description: `Pausing uploads. Will retry in 1 minute.`,
-            });
-        }
-        
         return false;
     }
   }
@@ -281,18 +264,16 @@ export const useBatteryData = () => {
     const isFirstUpload = state.currentBatteryId === null;
 
     const success = await processFile(file, dateContext, isFirstUpload);
-
-    uploadQueue.current.shift(); // Always remove from queue, success or fail
     dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
-    isProcessingQueue.current = false;
 
     if (success) {
-      // Immediately process the next item
+      uploadQueue.current.shift();
+      isProcessingQueue.current = false;
       processQueue(); 
     } else {
-      // Failure, empty the rest of the queue and reset.
       logger.warn('File processing failed, clearing remainder of upload queue and resetting state.');
       uploadQueue.current = [];
+      isProcessingQueue.current = false;
       dispatch({ type: 'RESET_UPLOAD_STATE' });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,14 +340,17 @@ export const useBatteryData = () => {
         clearTimeout(aiTimeoutRef.current);
     }
 
-    if (!latestDataPoint || isAiRunning.current || !apiKey) {
+    if (!latestDataPoint || isAiRunning.current) {
       if (!latestDataPoint) logger.info("AI Insights: Skipping, no latest data point.");
       if (isAiRunning.current) logger.info("AI Insights: Skipping, AI is already running.");
-      if (!apiKey) logger.info("AI Insights: Skipping, no API key available yet.");
       return;
     }
     
     const runAiTasks = async () => {
+      if (!apiKey) {
+        logger.info("AI Insights: Skipping, no API key available yet.");
+        return;
+      }
       isAiRunning.current = true;
       logger.info('AI Insights: Starting tasks for battery', latestDataPoint.batteryId);
       try {
@@ -414,7 +398,6 @@ export const useBatteryData = () => {
                 dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
                 if (alertsResult.alerts.length > 1) {
                     logger.info("AI Insights: Generating alert summary.");
-                    // This is a fire-and-forget, it updates its own state
                     generateAlertSummary({alerts: alertsResult.alerts, apiKey });
                 }
             } else {
@@ -424,15 +407,8 @@ export const useBatteryData = () => {
         
         setPreviousDataPoint(latestDataPoint);
         
-      } catch (error) {
-        logger.error("AI Insights: Error running tasks:", { error });
-        if (error instanceof Error && !/429|503/.test(error.message)) {
-            toast({
-                variant: "destructive",
-                title: "Could not fetch AI insights",
-                description: "There was an issue with the AI service. " + error.message,
-            });
-        }
+      } catch (error: any) {
+        logger.error("AI Insights: Error running tasks:", error);
       } finally {
         isAiRunning.current = false;
         logger.info('AI Insights: Tasks finished.');
@@ -446,8 +422,7 @@ export const useBatteryData = () => {
             clearTimeout(aiTimeoutRef.current);
         }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestDataPoint, apiKey]);
+  }, [latestDataPoint, apiKey, state.healthSummary, state.alerts, previousDataPoint]);
 
 
   return {
@@ -460,5 +435,3 @@ export const useBatteryData = () => {
     clearCurrentBatteryData,
   };
 };
-
-    

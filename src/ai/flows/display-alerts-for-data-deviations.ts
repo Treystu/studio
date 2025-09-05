@@ -38,7 +38,7 @@ const displayAlertsPrompt = ai.definePrompt({
     name: 'displayAlertsPrompt',
     input: { schema: DisplayAlertsInputSchema },
     output: { schema: DisplayAlertsOutputSchema },
-    model: 'googleAI/gemini-1.5-flash-latest',
+    model: 'googleAI/gemini-1.5-flash',
     prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
   
       Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:

@@ -17,10 +17,11 @@ if (!process.env.GEMINI_API_KEY) {
   );
 }
 
+// In dev, we can initialize with a key for easier local testing.
+// In production, the apiKey will be passed into each flow dynamically.
 const genkitOptions: GenkitOptions = {
   plugins: [googleAI()],
   logLevel: 'debug',
-  model: 'googleai/gemini-2.5-flash',
 };
 
 genkit(genkitOptions);

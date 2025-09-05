@@ -52,7 +52,15 @@ const getWeatherForecast = ai.defineTool(
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     // Simulate a forecast based on location
-    if (location.toLowerCase().includes('seattle')) {
+    if (location.toLowerCase().includes('pahoa')) {
+        return {
+           days: [
+               { day: days[today.getDay()], high: 28, low: 21, conditions: 'Mostly Sunny', sun_hours: 8.5 },
+               { day: days[(today.getDay() + 1) % 7], high: 29, low: 22, conditions: 'Sunny with chance of showers', sun_hours: 7.0 },
+               { day: days[(today.getDay() + 2) % 7], high: 28, low: 21, conditions: 'Partly Cloudy', sun_hours: 6.5 },
+           ]
+       };
+   } else if (location.toLowerCase().includes('seattle')) {
          return {
             days: [
                 { day: days[today.getDay()], high: 18, low: 10, conditions: 'Partly Cloudy', sun_hours: 4.5 },
@@ -120,7 +128,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
       });
 
       const { output } = await localAi.generate({
-        model: 'googleai/gemini-pro',
+        model: 'gemini-pro',
         tools: [getWeatherForecast],
         prompt: `You are an expert power management AI for an off-grid battery system.
           Your goal is to provide a concise, actionable recommendation to the user.

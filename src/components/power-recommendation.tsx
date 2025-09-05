@@ -26,7 +26,7 @@ export default function PowerRecommendation({ latestDataPoint }: PowerRecommenda
             soc: latestDataPoint.soc,
             power: latestDataPoint.power,
             // Hardcoding location for now. We can make this dynamic later.
-            location: "New York, NY"
+            location: "Pahoa, HI"
         });
         setRecommendation(result.recommendation);
       } catch (error) {

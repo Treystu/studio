@@ -48,6 +48,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
     const diagnostics = {
       timestamp: new Date().toISOString(),
       version,
+      verboseLogging: logger.isVerboseEnabled(),
       browser: {
         userAgent: navigator.userAgent,
         platform: navigator.platform,

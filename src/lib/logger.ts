@@ -15,11 +15,19 @@ class Logger {
         error: console.error,
     };
     private isInitialized = false;
+    private isVerbose = false;
 
     init() {
         if (this.isInitialized || typeof window === 'undefined') {
             return;
         }
+
+        try {
+            this.isVerbose = localStorage.getItem('verbose_logging') === 'true';
+        } catch (e) {
+            // localStorage may not be available
+        }
+
 
         console.log = (...args: any[]) => {
             this.addLog('log', args);
@@ -42,10 +50,13 @@ class Logger {
         };
         
         this.isInitialized = true;
-        this.info('Logger initialized.');
+        this.info(`Logger initialized. Verbose mode: ${this.isVerbose}`);
     }
 
     private addLog(level: LogEntry['level'], args: any[]) {
+        if (!this.isVerbose && level === 'info') {
+            return; // Don't log info messages unless in verbose mode
+        }
         try {
             const message = args.map(arg => {
                 if (typeof arg === 'string') return arg;
@@ -65,7 +76,7 @@ class Logger {
             });
 
             // Keep the log array from growing indefinitely
-            if (this.logs.length > 500) {
+            if (this.logs.length > 1000) { // Increased log limit
                 this.logs.shift();
             }
         } catch (e) {
@@ -77,6 +88,10 @@ class Logger {
         return this.logs;
     }
     
+    isVerboseEnabled() {
+        return this.isVerbose;
+    }
+
     log(...args: any[]) { this.addLog('log', args); this.originalConsole.log.apply(console, args); }
     info(...args: any[]) { this.addLog('info', args); this.originalConsole.info.apply(console, args); }
     warn(...args: any[]) { this.addLog('warn', args); this.originalConsole.warn.apply(console, args); }

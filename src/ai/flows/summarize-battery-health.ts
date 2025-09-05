@@ -34,7 +34,7 @@ const summarizeBatteryHealthPrompt = ai.definePrompt({
     name: 'summarizeBatteryHealthPrompt',
     input: { schema: SummarizeBatteryHealthInputSchema },
     output: { schema: SummarizeBatteryHealthOutputSchema },
-    model: 'googleAI/gemini-2.5-flash',
+    model: 'googleAI/gemini-1.5-flash-latest',
     prompt: `You are an AI assistant specializing in summarizing battery health.
   
       Based on the provided data, generate a concise summary of the battery's overall health. Focus on translating the metrics into an easy-to-understand assessment for a non-technical user. Mention key indicators like cell balance (from voltage differences) and age (from cycle count).

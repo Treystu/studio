@@ -9,10 +9,14 @@ import AlertsSection from "@/components/alerts-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Battery } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Dashboard() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+
+  useEffect(() => {
+    setSelectedDate(new Date());
+  }, []);
   
   const {
     batteries,
@@ -27,7 +31,9 @@ export default function Dashboard() {
   } = useBatteryData();
 
   const handleFileUpload = (files: File[]) => {
-    processUploadedFiles(files, selectedDate);
+    if (selectedDate) {
+      processUploadedFiles(files, selectedDate);
+    }
   }
 
   const hasData = Object.keys(batteries).length > 0 && currentBatteryId && batteries[currentBatteryId]?.length > 0;

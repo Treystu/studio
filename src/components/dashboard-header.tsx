@@ -17,8 +17,8 @@ interface DashboardHeaderProps {
   currentBatteryId: string | null;
   onBatteryChange: (id: string) => void;
   onFileUpload: (files: File[]) => void;
-  selectedDate: Date;
-  onDateChange: (date: Date) => void;
+  selectedDate: Date | undefined;
+  onDateChange: (date: Date | undefined) => void;
   onClearData: (backup: boolean) => void;
   isLoading: boolean;
   hasData: boolean;
@@ -94,7 +94,7 @@ export default function DashboardHeader({
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={(date) => onDateChange(date as Date)}
+              onSelect={onDateChange}
               initialFocus
             />
           </PopoverContent>
@@ -108,7 +108,7 @@ export default function DashboardHeader({
           multiple
           accept="image/*"
         />
-        <Button onClick={handleUploadClick} disabled={isLoading} size="sm" className="h-9">
+        <Button onClick={handleUploadClick} disabled={isLoading || !selectedDate} size="sm" className="h-9">
           {isLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (

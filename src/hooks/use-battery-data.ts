@@ -55,7 +55,11 @@ const reducer = (state: State, action: Action): State => {
       const timeParts = data.timestamp.split(':').map(Number);
 
       const newTimestamp = new Date(dateContext);
-      newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
+      // If dateContext has a time component from filename, it will be used. Otherwise, use time from screenshot.
+      if (newTimestamp.getHours() === 0 && newTimestamp.getMinutes() === 0 && newTimestamp.getSeconds() === 0) {
+        newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
+      }
+
 
       const newRawDataPoint: RawBatteryDataPoint = { ...data, timestamp: newTimestamp };
       const newAveragedDataPoint: BatteryDataPointWithDate = { ...data, timestamp: newTimestamp, uploadCount: 1 };
@@ -120,6 +124,28 @@ const reducer = (state: State, action: Action): State => {
   }
 };
 
+// Function to parse date from filename
+// Supports formats like "Screenshot_YYYYMMDD-HHMMSS.png" or "IMG_YYYY-MM-DD_HH-MM-SS.jpg"
+const parseDateFromFilename = (filename: string): Date | null => {
+    // Regex for YYYYMMDD-HHMMSS or YYYYMMDD_HHMMSS
+    const regex1 = /(\d{4})(\d{2})(\d{2})[-_]?(\d{2})(\d{2})(\d{2})/;
+    const match1 = filename.match(regex1);
+    if (match1) {
+        const [, year, month, day, hour, minute, second] = match1.map(Number);
+        return new Date(year, month - 1, day, hour, minute, second);
+    }
+    
+    // Regex for YYYY-MM-DD_HH-MM-SS
+    const regex2 = /(\d{4})-(\d{2})-(\d{2})[-_]?(\d{2})-(\d{2})-(\d{2})/;
+    const match2 = filename.match(regex2);
+    if (match2) {
+        const [, year, month, day, hour, minute, second] = match2.map(Number);
+        return new Date(year, month - 1, day, hour, minute, second);
+    }
+
+    return null;
+}
+
 // == HOOK == //
 export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -134,6 +160,12 @@ export const useBatteryData = () => {
     try {
       for (const [index, file] of files.entries()) {
         const baseProgress = (index / totalFiles) * 100;
+        let fileDateContext = dateContext;
+
+        const dateFromFilename = parseDateFromFilename(file.name);
+        if (dateFromFilename) {
+            fileDateContext = dateFromFilename;
+        }
         
         try {
           const reader = new FileReader();
@@ -154,7 +186,7 @@ export const useBatteryData = () => {
           if (index === 0 && !state.currentBatteryId) {
               firstBatteryId = extractedData.batteryId;
           }
-          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext } });
+          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext } });
           successfulUploads++;
         } catch (error) {
           console.error('Error processing file:', file.name, error);

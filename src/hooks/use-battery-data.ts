@@ -7,6 +7,7 @@ import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-da
 import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
 import { generateAlertSummary } from '@/ai/flows/generate-alert-summary';
 import { useToast } from './use-toast';
+import { logger } from '@/lib/logger';
 
 const API_KEY_STORAGE_KEY = "gemini_api_key";
 
@@ -187,6 +188,7 @@ export const useBatteryData = () => {
         title: "API Key Not Found",
         description: "Please set your Gemini API key in the settings menu before uploading.",
       });
+      logger.error("API Key not found in local storage during file processing.");
       dispatch({ type: 'RESET_UPLOAD_STATE' });
       return false; // Stop processing
     }
@@ -209,7 +211,7 @@ export const useBatteryData = () => {
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         return true;
     } catch (error) {
-        console.error('Error processing file:', file.name, error);
+        logger.error('Error processing file:', { name: file.name, error });
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
 
         if (error instanceof Error && /429|quota/.test(errorMessage)) {
@@ -237,6 +239,7 @@ export const useBatteryData = () => {
             dispatch({ type: 'RESET_UPLOAD_STATE' });
             if (state.totalFileCount > 0) {
               toast({ title: 'Upload Complete', description: `${state.totalFileCount} file(s) processed.` });
+              logger.info('Upload complete.', { count: state.totalFileCount });
             }
         }, 1000);
       }
@@ -257,6 +260,7 @@ export const useBatteryData = () => {
       processQueue(); 
     } else {
       // Failure, likely rate-limiting. Pause and retry.
+      logger.warn('File processing failed, pausing queue.');
       isProcessingQueue.current = false;
       setTimeout(processQueue, 60000); 
     }
@@ -264,6 +268,7 @@ export const useBatteryData = () => {
   }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, apiKey]);
 
   const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
+    logger.info(`Starting upload of ${files.length} files.`);
     dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
     uploadQueue.current.push(...files.map(file => ({ file, dateContext })));
     
@@ -274,18 +279,21 @@ export const useBatteryData = () => {
 
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
+    logger.info(`Switched to battery: ${batteryId}`);
     dispatch({ type: 'SET_CURRENT_BATTERY', payload: batteryId });
     setPreviousDataPoint(null);
   }, []);
 
   const clearCurrentBatteryData = useCallback((backup: boolean) => {
     if (!state.currentBatteryId) return;
+    logger.info(`Clearing data for battery: ${state.currentBatteryId}`, { backup });
+
     if (backup) {
       const dataToBackup = {
           averagedData: state.batteries[state.currentBatteryId],
           rawData: state.rawBatteries[state.currentBatteryId],
       }
-      console.log('Backing up data for', state.currentBatteryId, dataToBackup);
+      logger.info('Backing up data for', state.currentBatteryId, dataToBackup);
       const dataBlob = new Blob([JSON.stringify(dataToBackup, null, 2)], {type : 'application/json'});
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
@@ -317,6 +325,7 @@ export const useBatteryData = () => {
     
     const runAiTasks = async () => {
       isAiRunning.current = true;
+      logger.info('Running AI insight tasks...');
       try {
         const commonPayload = {
           apiKey,
@@ -337,15 +346,18 @@ export const useBatteryData = () => {
         
         let alertsPromise;
         if (socChanged || cellDiffChanged) {
+          logger.info('Significant data change detected, checking for alerts.');
           alertsPromise = displayAlertsForDataDeviations(commonPayload);
         }
 
         const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
 
         if (healthResult?.summary && healthResult.summary !== state.healthSummary) {
+          logger.info('New health summary generated.');
           dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
         }
         if (alertsResult?.alerts && JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
+            logger.info('New alerts generated.', { alerts: alertsResult.alerts });
             dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
             if (alertsResult.alerts.length > 1) {
                 // Don't wait for this one
@@ -355,7 +367,7 @@ export const useBatteryData = () => {
         setPreviousDataPoint(latestDataPoint);
         
       } catch (error) {
-        console.error("Error running AI insight tasks:", error);
+        logger.error("Error running AI insight tasks:", { error });
         if (error instanceof Error && !/429|503/.test(error.message)) {
             toast({
                 variant: "destructive",
@@ -365,6 +377,7 @@ export const useBatteryData = () => {
         }
       } finally {
         isAiRunning.current = false;
+        logger.info('AI insight tasks finished.');
       }
     };
     

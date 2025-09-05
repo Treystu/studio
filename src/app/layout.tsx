@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
+
+logger.init();
 
 export const metadata: Metadata = {
   title: 'BatteryView',

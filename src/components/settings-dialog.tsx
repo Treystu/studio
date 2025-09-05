@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { version } from '../../package.json';
+import { useBatteryData } from "@/hooks/use-battery-data";
+import { logger } from "@/lib/logger";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -18,6 +20,7 @@ const API_KEY_STORAGE_KEY = "gemini_api_key";
 export default function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [apiKey, setApiKey] = useState("");
   const { toast } = useToast();
+  const batteryDataState = useBatteryData();
 
   useEffect(() => {
     if (open) {
@@ -31,8 +34,6 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
   const handleSave = () => {
     localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
     
-    // In a real app, you'd likely want to re-initialize or notify services
-    // that use this key. For now, a page reload is a simple way to apply it.
     toast({
       title: "API Key Saved",
       description: "The page will now reload to apply the new API key.",
@@ -41,6 +42,39 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
     setTimeout(() => {
       window.location.reload();
     }, 1500);
+  };
+
+  const handleDownloadDiagnostics = () => {
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      version,
+      browser: {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        screen: {
+          width: window.screen.width,
+          height: window.screen.height,
+          availWidth: window.screen.availWidth,
+          availHeight: window.screen.availHeight,
+        }
+      },
+      logs: logger.getLogs(),
+      appState: batteryDataState,
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(diagnostics, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `diagnostic-data-${new Date().toISOString()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+
+    toast({
+        title: "Diagnostics Downloaded",
+        description: "The diagnostic file has been saved."
+    })
   };
   
   return (
@@ -66,8 +100,8 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
             />
           </div>
         </div>
-        <DialogFooter className="sm:justify-between">
-            <div />
+        <DialogFooter className="sm:justify-between border-t pt-4">
+          <Button variant="outline" onClick={handleDownloadDiagnostics}>Download Diagnostics</Button>
           <Button onClick={handleSave}>Save and Reload</Button>
         </DialogFooter>
       </DialogContent>

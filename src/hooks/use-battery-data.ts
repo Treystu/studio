@@ -51,27 +51,21 @@ const initialState: State = {
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.info(`ACTION: ${action.type}`, action);
+  logger.info(`ACTION: ${action.type}`, action.payload || '');
   switch (action.type) {
     case 'START_LOADING':
-      logger.info(`START_LOADING: ${action.payload.totalFiles} files`);
       return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
-       logger.info('STOP_LOADING');
       return { ...state, isLoading: false };
     case 'RESET_UPLOAD_STATE':
-        logger.info('RESET_UPLOAD_STATE');
         return { ...state, isLoading: false, totalFileCount: 0, processedFileCount: 0, uploadProgress: null };
     case 'SET_BATTERIES':
-      logger.info('SET_BATTERIES');
       return { ...state, batteries: action.payload.batteries, rawBatteries: action.payload.rawBatteries };
     case 'SET_CURRENT_BATTERY':
-      logger.info(`SET_CURRENT_BATTERY: ${action.payload}`);
       return { ...state, currentBatteryId: action.payload, alerts: [], healthSummary: '' };
     case 'ADD_DATA': {
       const { data, dateContext, isFirstUpload } = action.payload;
       const { batteryId } = data;
-      logger.info(`ADD_DATA for battery ${batteryId}`, { isFirstUpload });
 
       const timeParts = data.timestamp.split(':').map(Number);
 
@@ -86,8 +80,7 @@ const reducer = (state: State, action: Action): State => {
       const updatedRawBatteries = { ...state.rawBatteries };
       const existingRawData = updatedRawBatteries[batteryId] || [];
       updatedRawBatteries[batteryId] = [...existingRawData, newRawDataPoint].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
-      logger.info(`Raw data for ${batteryId} updated. Total points: ${updatedRawBatteries[batteryId].length}`);
-
+     
       const updatedAveragedBatteries = { ...state.batteries };
       const existingAveragedData = updatedAveragedBatteries[batteryId] || [];
       
@@ -118,28 +111,22 @@ const reducer = (state: State, action: Action): State => {
         averagedPoint.uploadCount = newTotalCount;
         existingAveragedData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
         updatedAveragedBatteries[batteryId] = [...existingAveragedData];
-        logger.info(`Averaged data point updated for ${batteryId} at hour key ${hourKey}. New count: ${newTotalCount}`);
       } else {
         updatedAveragedBatteries[batteryId] = [...existingAveragedData, newAveragedDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        logger.info(`New averaged data point added for ${batteryId}. Total points: ${updatedAveragedBatteries[batteryId].length}`);
       }
       
       const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
       if (isFirstUpload && !state.currentBatteryId) {
         newState.currentBatteryId = batteryId;
-         logger.info(`This is the first upload. Setting current battery ID to: ${batteryId}`);
       }
       return newState;
     }
     case 'SET_ALERTS':
-      logger.info('SET_ALERTS', { alerts: action.payload });
       return { ...state, alerts: action.payload };
     case 'SET_HEALTH_SUMMARY':
-        logger.info('SET_HEALTH_SUMMARY', { summary: action.payload });
         return { ...state, healthSummary: action.payload };
     case 'CLEAR_BATTERY_DATA': {
       if (!action.payload) return state;
-      logger.info(`CLEAR_BATTERY_DATA for: ${action.payload}`);
       const newBatteries = { ...state.batteries };
       delete newBatteries[action.payload];
       const newRawBatteries = { ...state.rawBatteries };
@@ -149,7 +136,6 @@ const reducer = (state: State, action: Action): State => {
     }
      case 'INCREMENT_PROCESSED_COUNT':
       const newProcessedCount = state.processedFileCount + 1;
-      logger.info(`INCREMENT_PROCESSED_COUNT: ${newProcessedCount}/${state.totalFileCount}`);
       return { ...state, processedFileCount: newProcessedCount, uploadProgress: (newProcessedCount / state.totalFileCount) * 100 };
     case 'SET_UPLOAD_PROGRESS':
       return { ...state, uploadProgress: action.payload.progress, processedFileCount: action.payload.processed };
@@ -201,9 +187,7 @@ export const useBatteryData = () => {
   }, []);
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
-     logger.info(`HYPER-VERBOSE: PROCESS FILE START: ${file.name}`);
      if (!apiKey) {
-      logger.error("HYPER-VERBOSE: PROCESS FILE ABORTED: API Key not available.");
       toast({
         variant: "destructive",
         title: "API Key Required",
@@ -214,12 +198,7 @@ export const useBatteryData = () => {
 
     try {
         const fileDateContext = parseDateFromFilename(file.name) || dateContext;
-        logger.info(`HYPER-VERBOSE: Processing file: ${file.name}`, { 
-            filenameDate: parseDateFromFilename(file.name)?.toISOString(),
-            contextDate: dateContext.toISOString(),
-            finalDate: fileDateContext.toISOString()
-        });
-
+        
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
             reader.onload = e => resolve(e.target?.result as string);
@@ -227,16 +206,13 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
         
-        logger.info(`HYPER-VERBOSE: File converted to data URI. Size: ${dataUri.length}. Calling 'extractDataFromBMSImage' AI flow...`, {filename: file.name});
         const payload = { photoDataUri: dataUri, apiKey };
-        logger.info('HYPER-VERBOSE: Payload to be sent to AI Flow:', { ...payload, photoDataUri: `${payload.photoDataUri.substring(0, 50)}...`, apiKey: `...${payload.apiKey.slice(-4)}` });
         const extractedData = await extractDataFromBMSImage(payload);
-        logger.info("HYPER-VERBOSE: AI flow 'extractDataFromBMSImage' successful. Extracted data:", extractedData);
-
+        
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         return true;
     } catch (error: any) {
-        logger.error(`HYPER-VERBOSE: Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
+        logger.error(`Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
 
         toast({
             variant: 'destructive',
@@ -245,19 +221,15 @@ export const useBatteryData = () => {
             duration: 10000,
         });
         return false;
-    } finally {
-        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
     }
   }
 
   const processQueue = useCallback(async () => {
     if (isProcessingQueue.current) {
-        logger.info('processQueue called, but already processing.');
         return;
     }
     if (uploadQueue.current.length === 0) {
       if (state.totalFileCount > 0 && state.processedFileCount === state.totalFileCount) {
-        logger.info('Upload queue finished.');
         setTimeout(() => {
             dispatch({ type: 'RESET_UPLOAD_STATE' });
             if (state.totalFileCount > 0) {
@@ -270,7 +242,6 @@ export const useBatteryData = () => {
 
     isProcessingQueue.current = true;
     const { file, dateContext } = uploadQueue.current[0];
-    logger.info(`Processing next item in queue: ${file.name}. Queue length: ${uploadQueue.current.length}`);
     const isFirstUpload = state.currentBatteryId === null;
 
     const success = await processFile(file, dateContext, isFirstUpload);
@@ -297,7 +268,6 @@ export const useBatteryData = () => {
       logger.error("Upload attempt failed: No API Key is set.");
       return;
     }
-    logger.info(`Adding ${files.length} files to the upload queue.`);
     dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
     uploadQueue.current.push(...files.map(file => ({ file, dateContext })));
     
@@ -308,21 +278,18 @@ export const useBatteryData = () => {
 
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
-    logger.info(`Switching view to battery: ${batteryId}`);
     dispatch({ type: 'SET_CURRENT_BATTERY', payload: batteryId });
     setPreviousDataPoint(null);
   }, []);
 
   const clearCurrentBatteryData = useCallback((backup: boolean) => {
     if (!state.currentBatteryId) return;
-    logger.info(`Clearing data for battery: ${state.currentBatteryId}`, { backup });
 
     if (backup) {
       const dataToBackup = {
           averagedData: state.batteries[state.currentBatteryId],
           rawData: state.rawBatteries[state.currentBatteryId],
       }
-      logger.info('Backing up data for', state.currentBatteryId, dataToBackup);
       const dataBlob = new Blob([JSON.stringify(dataToBackup, null, 2)], {type : 'application/json'});
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
@@ -349,19 +316,11 @@ export const useBatteryData = () => {
         clearTimeout(aiTimeoutRef.current);
     }
 
-    if (!latestDataPoint) {
-      logger.info("AI Insights: Skipping, no latest data point.");
-      return;
-    }
-    if (!apiKey) {
-      logger.info("AI Insights: Skipping, no API key available yet.");
+    if (!latestDataPoint || !apiKey) {
       return;
     }
     
     const runAiTasks = async () => {
-      logger.info('AI Insights: Starting tasks for battery', latestDataPoint.batteryId);
-      logger.info('AI Insights: Current data point', latestDataPoint);
-      logger.info('AI Insights: Previous data point', previousDataPoint);
       try {
         const commonPayload = {
           apiKey,
@@ -374,8 +333,7 @@ export const useBatteryData = () => {
           averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
           cycleCount: latestDataPoint.cycleCount,
         };
-
-        logger.info("AI Insights: Fetching health summary.");
+        
         const healthSummaryPromise = summarizeBatteryHealth(commonPayload);
 
         const socChanged = previousDataPoint ? Math.abs(latestDataPoint.soc - previousDataPoint.soc) > 2 : true;
@@ -383,34 +341,21 @@ export const useBatteryData = () => {
         
         let alertsPromise;
         if (socChanged || cellDiffChanged) {
-          logger.info('AI Insights: Significant data change detected, checking for alerts.', {socChanged, cellDiffChanged});
           alertsPromise = displayAlertsForDataDeviations(commonPayload);
         } else {
-          logger.info('AI Insights: No significant data change, skipping alert check.');
           alertsPromise = Promise.resolve(undefined);
         }
 
         const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
         
-        if (healthResult?.summary) {
-            if(healthResult.summary !== state.healthSummary) {
-                logger.info('AI Insights: New health summary received.');
-                dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
-            } else {
-                 logger.info('AI Insights: Health summary is unchanged.');
-            }
+        if (healthResult?.summary && healthResult.summary !== state.healthSummary) {
+            dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
         }
         
-        if (alertsResult?.alerts) {
-            if (JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
-                logger.info('AI Insights: New alerts received.', { alerts: alertsResult.alerts });
-                dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
-                if (alertsResult.alerts.length > 1) {
-                    logger.info("AI Insights: Generating alert summary.");
-                    generateAlertSummary({alerts: alertsResult.alerts, apiKey });
-                }
-            } else {
-                 logger.info('AI Insights: Alerts are unchanged.');
+        if (alertsResult?.alerts && JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
+            dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
+            if (alertsResult.alerts.length > 1) {
+                generateAlertSummary({alerts: alertsResult.alerts, apiKey });
             }
         }
         
@@ -418,8 +363,6 @@ export const useBatteryData = () => {
         
       } catch (error: any) {
         logger.error("AI Insights: Error running tasks:", error);
-      } finally {
-        logger.info('AI Insights: Tasks finished.');
       }
     };
     

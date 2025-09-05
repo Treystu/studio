@@ -44,19 +44,17 @@ const generateAlertSummaryFlow = ai.defineFlow(
     logger.info('generateAlertSummaryFlow invoked.');
     const { apiKey, ...promptData } = input;
     if (!apiKey) {
-      logger.error('CRITICAL: API key is missing in generateAlertSummaryFlow');
+      logger.error('API key is missing in generateAlertSummaryFlow');
       throw new Error('API key is required.');
     }
     
-    logger.info(`HYPER-VERBOSE: generateAlertSummaryFlow received API Key: ${apiKey.substring(0, 5)}...`);
-
     try {
         const localAi = genkit({
             plugins: [googleAI({ apiKey })],
         });
 
-        const payload = {
-            model: 'gemini-pro',
+        const { output } = await localAi.generate({
+            model: 'gemini-1.5-flash-latest',
             prompt: `You are an AI assistant specializing in summarizing battery alerts.
           
               Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
@@ -68,11 +66,7 @@ const generateAlertSummaryFlow = ai.defineFlow(
             output: {
                 schema: GenerateAlertSummaryOutputSchema
             }
-        };
-
-        logger.info('HYPER-VERBOSE: Calling localAi.generate with payload:', payload);
-
-        const { output } = await localAi.generate(payload);
+        });
         
         if (!output) {
           throw new Error('No output from AI');
@@ -81,7 +75,7 @@ const generateAlertSummaryFlow = ai.defineFlow(
         logger.info('generateAlertSummaryFlow successful.');
         return output;
     } catch (e: any) {
-        logger.error('HYPER-VERBOSE FATAL: Error in generateAlertSummaryFlow generate call:', JSON.stringify(e, null, 2));
+        logger.error('Error in generateAlertSummaryFlow generate call:', e);
         throw e;
     }
   }

@@ -51,10 +51,10 @@ const initialState: State = {
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.info(`ACTION: ${action.type}`, JSON.parse(JSON.stringify(action)));
+  logger.info(`ACTION: ${action.type}`, action.payload ? JSON.parse(JSON.stringify(action.payload)) : '');
   switch (action.type) {
     case 'START_LOADING':
-       logger.info(`START_LOADING: ${action.payload.totalFiles} files`);
+       logger.info(`Upload started: ${action.payload.totalFiles} files`);
       return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
@@ -67,7 +67,7 @@ const reducer = (state: State, action: Action): State => {
     case 'ADD_DATA': {
       const { data, dateContext, isFirstUpload } = action.payload;
       const { batteryId } = data;
-      logger.info('ADD_DATA: Adding data for battery:', batteryId);
+      logger.info('Adding data for battery:', batteryId);
 
       const timeParts = data.timestamp.split(':').map(Number);
 
@@ -75,7 +75,7 @@ const reducer = (state: State, action: Action): State => {
       if (newTimestamp.getHours() === 0 && newTimestamp.getMinutes() === 0 && newTimestamp.getSeconds() === 0) {
         newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
       }
-      logger.info(`ADD_DATA: Final timestamp determined as: ${newTimestamp.toISOString()}`);
+      logger.info(`Final timestamp for data point determined as: ${newTimestamp.toISOString()}`);
 
 
       const newRawDataPoint: RawBatteryDataPoint = { ...data, timestamp: newTimestamp };
@@ -96,7 +96,7 @@ const reducer = (state: State, action: Action): State => {
       });
 
       if (existingIndex !== -1) {
-        logger.info('ADD_DATA: Found existing data point for this hour. Averaging values.');
+        logger.info('Found existing data point for this hour. Averaging values.');
         const existingPoint = existingAveragedData[existingIndex];
         const averagedPoint = { ...existingPoint };
 
@@ -117,13 +117,13 @@ const reducer = (state: State, action: Action): State => {
         existingAveragedData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
         updatedAveragedBatteries[batteryId] = [...existingAveragedData];
       } else {
-        logger.info('ADD_DATA: No existing data for this hour. Adding new point.');
+        logger.info('No existing data for this hour. Adding new point.');
         updatedAveragedBatteries[batteryId] = [...existingAveragedData, newAveragedDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       }
       
       const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
       if (isFirstUpload && !state.currentBatteryId) {
-        logger.info(`ADD_DATA: This is the first upload. Setting current battery to: ${batteryId}`);
+        logger.info(`This is the first upload. Setting current battery to: ${batteryId}`);
         newState.currentBatteryId = batteryId;
       }
       return newState;
@@ -143,7 +143,7 @@ const reducer = (state: State, action: Action): State => {
     }
      case 'INCREMENT_PROCESSED_COUNT':
       const newProcessedCount = state.processedFileCount + 1;
-      logger.info(`INCREMENT_PROCESSED_COUNT: ${newProcessedCount}/${state.totalFileCount}`);
+      logger.info(`Processed file ${newProcessedCount}/${state.totalFileCount}`);
       return { ...state, processedFileCount: newProcessedCount, uploadProgress: (newProcessedCount / state.totalFileCount) * 100 };
     case 'SET_UPLOAD_PROGRESS':
       return { ...state, uploadProgress: action.payload.progress, processedFileCount: action.payload.processed };
@@ -195,7 +195,7 @@ export const useBatteryData = () => {
   }, []);
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
-    logger.info(`HYPER-VERBOSE: PROCESS FILE START: ${file.name}`);
+    logger.info(`Starting to process file: ${file.name}`);
      if (!apiKey) {
       toast({
         variant: "destructive",
@@ -208,7 +208,7 @@ export const useBatteryData = () => {
     try {
         const filenameDate = parseDateFromFilename(file.name);
         const fileDateContext = filenameDate || dateContext;
-        logger.info(`HYPER-VERBOSE: Processing file: ${file.name}`, { filenameDate: filenameDate?.toISOString(), contextDate: dateContext.toISOString(), finalDate: fileDateContext.toISOString() });
+        logger.info(`Processing file: ${file.name} with date context: ${fileDateContext.toISOString()}`);
         
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -217,25 +217,22 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
         
-        logger.info(`HYPER-VERBOSE: File converted to data URI. Size: ${dataUri.length}. Calling 'extractDataFromBMSImage' AI flow...`, { filename: file.name });
+        logger.info(`File converted to data URI. Calling 'extractDataFromBMSImage' AI flow...`);
         const payload = { photoDataUri: dataUri, apiKey };
-        logger.info("HYPER-VERBOSE: Payload to be sent to AI Flow:", { photoDataUri: `data:image/png;base64,${dataUri.substring(22, 52)}...`, apiKey: `...${apiKey.slice(-5)}`});
         
         const extractedData = await extractDataFromBMSImage(payload);
         
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
-        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
+        logger.info(`Successfully processed file: ${file.name}`);
         return true;
     } catch (error: any) {
-        logger.error(`HYPER-VERBOSE: Error processing file: ${file.name}`, error);
-
+        logger.error(`Error processing file: ${file.name}`, error);
         toast({
             variant: 'destructive',
             title: `Error processing ${file.name}`,
             description: `Could not extract data. Check logs for details.`,
             duration: 10000,
         });
-        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
         return false;
     }
   }
@@ -268,7 +265,8 @@ export const useBatteryData = () => {
 
     if (!success) {
       logger.warn('File processing failed, clearing remainder of upload queue and resetting state.');
-      uploadQueue.current = [];
+      uploadQueue.current = []; // Clear the queue on failure
+      dispatch({ type: 'RESET_UPLOAD_STATE' }); // Reset loading indicators
     }
     isProcessingQueue.current = false;
     processQueue();
@@ -340,7 +338,7 @@ export const useBatteryData = () => {
       return;
     }
     
-    logger.info("AI Insights: latestDataPoint has changed. Scheduling AI tasks.", latestDataPoint);
+    logger.info("AI Insights: latestDataPoint has changed. Scheduling AI tasks.");
     
     const runAiTasks = async () => {
       logger.info("AI Insights: Running scheduled tasks...");

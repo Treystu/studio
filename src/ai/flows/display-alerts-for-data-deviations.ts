@@ -52,19 +52,17 @@ const displayAlertsFlow = ai.defineFlow(
     logger.info('displayAlertsFlow invoked with input for battery:', input.batteryId);
     const {apiKey, ...promptData} = input;
     if (!apiKey) {
-      logger.error('CRITICAL: API key is missing in displayAlertsFlow');
+      logger.error('API key is missing in displayAlertsFlow');
       throw new Error('API key is required.');
     }
-    
-    logger.info(`HYPER-VERBOSE: displayAlertsFlow received API Key: ${apiKey.substring(0, 5)}...`);
 
     try {
         const localAi = genkit({
             plugins: [googleAI({ apiKey })],
         });
         
-        const payload = {
-            model: 'gemini-pro',
+        const { output } = await localAi.generate({
+            model: 'gemini-1.5-flash-latest',
             prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
           
               Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
@@ -89,11 +87,7 @@ const displayAlertsFlow = ai.defineFlow(
             output: {
                 schema: DisplayAlertsOutputSchema
             }
-        };
-
-        logger.info('HYPER-VERBOSE: Calling localAi.generate with payload:', payload);
-
-        const { output } = await localAi.generate(payload);
+        });
 
         if (!output) {
             throw new Error('No output from AI');
@@ -102,7 +96,7 @@ const displayAlertsFlow = ai.defineFlow(
         logger.info('displayAlertsFlow successful for:', input.batteryId);
         return output;
     } catch (e: any) {
-        logger.error('HYPER-VERBOSE FATAL: Error in displayAlertsFlow generate call:', JSON.stringify(e, null, 2));
+        logger.error('Error in displayAlertsFlow generate call:', e);
         throw e;
     }
   }

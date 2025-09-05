@@ -145,10 +145,9 @@ const generatePowerRecommendationFlow = ai.defineFlow(
     logger.info('generatePowerRecommendationFlow invoked with input:', input);
     const {apiKey, ...promptData} = input;
     if (!apiKey) {
-      logger.error('CRITICAL: API key is missing in generatePowerRecommendationFlow');
+      logger.error('API key is missing in generatePowerRecommendationFlow');
       throw new APIError(400, 'API key is required.');
     }
-    logger.info(`generatePowerRecommendationFlow received API Key: ${apiKey.substring(0, 5)}...`);
     
     try {
       const localAi = genkit({
@@ -156,7 +155,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
       });
 
       const { output } = await localAi.generate({
-        model: 'googleai/gemini-pro',
+        model: 'gemini-1.5-flash-latest',
         tools: [getWeatherForecast, getSunriseSunsetTimes],
         prompt: `You are an expert power management AI for an off-grid battery system.
           Your goal is to provide a concise, actionable recommendation to the user.
@@ -187,7 +186,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
       logger.info('generatePowerRecommendationFlow successful for:', input.location);
       return output;
     } catch (e: any) {
-      logger.error('FATAL: Error in generatePowerRecommendationFlow generate call:', e);
+      logger.error('Error in generatePowerRecommendationFlow generate call:', e);
       throw e;
     }
   }

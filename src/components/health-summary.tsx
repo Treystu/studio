@@ -26,9 +26,9 @@ export default function HealthSummary({ data }: HealthSummaryProps) {
             soc: data.soc,
             voltage: data.voltage,
             current: data.current,
-            maxCellVoltage: data.maxCellVoltage ?? 0,
-            minCellVoltage: data.minCellVoltage ?? 0,
-            averageCellVoltage: data.avgCellVoltage ?? 0,
+            maxCellVoltage: data.maxCellVoltage ?? null,
+            minCellVoltage: data.minCellVoltage ?? null,
+            averageCellVoltage: data.avgCellVoltage ?? null,
             cycleCount: data.cycleCount,
         });
         setSummary(result.summary);

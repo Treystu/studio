@@ -23,7 +23,7 @@ type Action =
   | { type: 'STOP_LOADING' }
   | { type: 'SET_BATTERIES'; payload: { batteries: BatteryCollection, rawBatteries: RawBatteryCollection } }
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
-  | { type: 'ADD_DATA'; payload: { data: BatteryDataPoint; dateContext: Date } }
+  | { type: 'ADD_DATA'; payload: { data: BatteryDataPoint; dateContext: Date, isFirstUpload: boolean } }
   | { type: 'SET_ALERTS'; payload: string[] }
   | { type: 'CLEAR_BATTERY_DATA'; payload: string }
   | { type: 'SET_UPLOAD_PROGRESS'; payload: { progress: number | null, processed: number } };
@@ -50,7 +50,7 @@ const reducer = (state: State, action: Action): State => {
     case 'SET_CURRENT_BATTERY':
       return { ...state, currentBatteryId: action.payload, alerts: [] };
     case 'ADD_DATA': {
-      const { data, dateContext } = action.payload;
+      const { data, dateContext, isFirstUpload } = action.payload;
       const { batteryId } = data;
       const timeParts = data.timestamp.split(':').map(Number);
 
@@ -59,7 +59,6 @@ const reducer = (state: State, action: Action): State => {
       if (newTimestamp.getHours() === 0 && newTimestamp.getMinutes() === 0 && newTimestamp.getSeconds() === 0) {
         newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
       }
-
 
       const newRawDataPoint: RawBatteryDataPoint = { ...data, timestamp: newTimestamp };
       const newAveragedDataPoint: BatteryDataPointWithDate = { ...data, timestamp: newTimestamp, uploadCount: 1 };
@@ -104,7 +103,11 @@ const reducer = (state: State, action: Action): State => {
         updatedAveragedBatteries[batteryId] = [...existingAveragedData, newAveragedDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       }
       
-      return { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
+      const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
+      if (isFirstUpload && !state.currentBatteryId) {
+        newState.currentBatteryId = batteryId;
+      }
+      return newState;
     }
     case 'SET_ALERTS':
       return { ...state, alerts: action.payload };
@@ -154,7 +157,6 @@ export const useBatteryData = () => {
   const processUploadedFiles = useCallback(async (files: File[], dateContext: Date) => {
     const totalFiles = files.length;
     dispatch({ type: 'START_LOADING', payload: { totalFiles } });
-    let firstBatteryId: string | null = null;
     let successfulUploads = 0;
     
     try {
@@ -183,10 +185,7 @@ export const useBatteryData = () => {
           const progressAfterExtract = baseProgress + (1 / totalFiles) * 100 * 0.9; // 90% of file progress
           dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: progressAfterExtract, processed: index } });
           
-          if (index === 0 && !state.currentBatteryId) {
-              firstBatteryId = extractedData.batteryId;
-          }
-          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext } });
+          dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload: index === 0 } });
           successfulUploads++;
         } catch (error) {
           console.error('Error processing file:', file.name, error);
@@ -200,10 +199,6 @@ export const useBatteryData = () => {
             dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: finalProgress, processed: index + 1 } });
         }
       }
-
-      if (firstBatteryId) {
-        dispatch({ type: 'SET_CURRENT_BATTERY', payload: firstBatteryId });
-      }
     } finally {
       dispatch({ type: 'STOP_LOADING' });
       // Use a timeout to allow the progress bar to reach 100% and be visible.
@@ -216,7 +211,7 @@ export const useBatteryData = () => {
           });
       }, 1000);
     }
-  }, [toast, state.currentBatteryId]);
+  }, [toast]);
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
     dispatch({ type: 'SET_CURRENT_BATTERY', payload: batteryId });

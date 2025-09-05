@@ -18,9 +18,9 @@ const SummarizeBatteryHealthInputSchema = z.object({
   soc: z.number().describe('The current State of Charge (SOC) of the battery.'),
   voltage: z.number().describe('The current voltage of the battery.'),
   current: z.number().describe('The current of the battery.'),
-  maxCellVoltage: z.number().describe('The maximum cell voltage.'),
-  minCellVoltage: z.number().describe('The minimum cell voltage.'),
-  averageCellVoltage: z.number().describe('The average cell voltage.'),
+  maxCellVoltage: z.number().nullable().describe('The maximum cell voltage. Can be null if data is missing.'),
+  minCellVoltage: z.number().nullable().describe('The minimum cell voltage. Can be null if data is missing.'),
+  averageCellVoltage: z.number().nullable().describe('The average cell voltage. Can be null if data is missing.'),
   cycleCount: z.number().describe('The number of charge cycles the battery has undergone.'),
 });
 export type SummarizeBatteryHealthInput = z.infer<typeof SummarizeBatteryHealthInputSchema>;
@@ -41,6 +41,8 @@ const summarizeBatteryHealthPrompt = ai.definePrompt({
   prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
 
   Based on the following battery data, provide a concise summary of the battery's current health status. Include key metrics such as SOC, voltage, and any significant deviations.
+  
+  If maxCellVoltage, minCellVoltage or averageCellVoltage are null, do not mention them in the summary or consider them as 0. Acknowledge that this data might be missing.
 
   Battery ID: {{{batteryId}}}
   SOC: {{{soc}}}

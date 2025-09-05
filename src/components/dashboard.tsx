@@ -42,6 +42,8 @@ export default function Dashboard() {
   }
 
   const hasData = Object.keys(batteries).length > 0 && currentBatteryId && batteries[currentBatteryId]?.length > 0;
+  
+  const isInitialLoading = isLoading && !hasData;
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -60,7 +62,7 @@ export default function Dashboard() {
         totalFileCount={totalFileCount}
       />
       <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-8">
-        {isLoading && !hasData ? (
+        {isInitialLoading ? (
            <div className="space-y-8">
              <Skeleton className="h-48 w-full" />
              <Skeleton className="h-64 w-full" />

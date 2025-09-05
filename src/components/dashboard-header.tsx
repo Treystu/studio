@@ -24,6 +24,8 @@ interface DashboardHeaderProps {
   isLoading: boolean;
   hasData: boolean;
   uploadProgress: number | null;
+  processedFileCount: number;
+  totalFileCount: number;
 }
 
 export default function DashboardHeader({
@@ -37,6 +39,8 @@ export default function DashboardHeader({
   isLoading,
   hasData,
   uploadProgress,
+  processedFileCount,
+  totalFileCount,
 }: DashboardHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isClearDialogOpen, setClearDialogOpen] = useState(false);
@@ -131,7 +135,9 @@ export default function DashboardHeader({
       </div>
       {uploadProgress !== null && (
         <div className="flex items-center gap-3 py-2">
-          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Processing...</span>
+          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+            {totalFileCount > 0 ? `Processing ${processedFileCount}/${totalFileCount}...` : 'Processing...'}
+          </span>
           <Progress value={uploadProgress} className="h-2 w-full" />
           <span className="text-sm font-mono font-medium text-muted-foreground">{uploadProgress.toFixed(0)}%</span>
         </div>

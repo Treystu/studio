@@ -31,6 +31,8 @@ export default function Dashboard() {
     isLoading,
     alerts,
     uploadProgress,
+    processedFileCount,
+    totalFileCount,
   } = useBatteryData();
 
   const handleFileUpload = (files: File[]) => {
@@ -54,6 +56,8 @@ export default function Dashboard() {
         isLoading={isLoading}
         hasData={!!currentBatteryId}
         uploadProgress={uploadProgress}
+        processedFileCount={processedFileCount}
+        totalFileCount={totalFileCount}
       />
       <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-8">
         {isLoading && !hasData ? (

@@ -26,10 +26,10 @@ const ExtractDataFromBMSImageOutputSchema = z.object({
   voltage: z.number().describe('The voltage of the battery (V).'),
   current: z.number().describe('The current of the battery (A).'),
   remainingCapacity: z.number().describe('The remaining capacity of the battery (Ah).'),
-  maxCellVoltage: z.number().describe('The maximum cell voltage (V).'),
-  minCellVoltage: z.number().describe('The minimum cell voltage (V).'),
-  avgCellVoltage: z.number().describe('The average cell voltage (V).'),
-  cellVoltageDifference: z.number().describe('The difference between the maximum and minimum cell voltages (V).'),
+  maxCellVoltage: z.number().nullable().optional().describe('The maximum cell voltage (V).'),
+  minCellVoltage: z.number().nullable().optional().describe('The minimum cell voltage (V).'),
+  avgCellVoltage: z.number().nullable().optional().describe('The average cell voltage (V).'),
+  cellVoltageDifference: z.number().nullable().optional().describe('The difference between the maximum and minimum cell voltages (V).'),
   cycleCount: z.number().describe('The number of charge cycles the battery has undergone.'),
   power: z.number().describe('The power of the battery (kW).'),
   mosChargeStatus: z.string().describe('The status of the MOS (Metal-Oxide-Semiconductor) during charging (Charge/Discharge).'),
@@ -49,7 +49,7 @@ const prompt = ai.definePrompt({
   output: {schema: ExtractDataFromBMSImageOutputSchema},
   prompt: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
 
-  Analyze the provided screenshot and extract the following key data points. Ensure the extracted values are accurate and properly formatted.
+  Analyze the provided screenshot and extract the following key data points. Ensure the extracted values are accurate and properly formatted. If a value is not present in the screenshot, return null for that field.
 
   - Battery ID: Extract the unique identifier of the battery.
   - State of Charge (SOC): Extract the State of Charge of the battery (%).
@@ -99,4 +99,3 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
     return output!;
   }
 );
-

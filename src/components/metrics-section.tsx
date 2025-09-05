@@ -10,7 +10,10 @@ interface MetricsSectionProps {
   data: BatteryDataPointWithDate;
 }
 
-function CellVoltageCard({ title, value }: { title: string, value: number }) {
+function CellVoltageCard({ title, value }: { title: string, value: number | null | undefined }) {
+    if (value === null || value === undefined) {
+        return null;
+    }
     return (
         <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-2">
@@ -34,6 +37,7 @@ export default function MetricsSection({ data }: MetricsSectionProps) {
             <CellVoltageCard title="Max Cell Voltage" value={data.maxCellVoltage} />
             <CellVoltageCard title="Min Cell Voltage" value={data.minCellVoltage} />
             <CellVoltageCard title="Avg Cell Voltage" value={data.avgCellVoltage} />
+            {data.cellVoltageDifference !== null && data.cellVoltageDifference !== undefined && (
              <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
                 <div className="flex items-center gap-2">
                     <GitCommitVertical className="w-4 h-4 text-primary" />
@@ -41,6 +45,7 @@ export default function MetricsSection({ data }: MetricsSectionProps) {
                 </div>
                 <p className="text-sm font-mono">{data.cellVoltageDifference.toFixed(3)} V</p>
             </div>
+            )}
           </CardContent>
         </Card>
 

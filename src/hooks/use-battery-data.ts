@@ -72,6 +72,10 @@ const reducer = (state: State, action: Action): State => {
             const existingValue = existingPoint[key] as number;
             const newValue = newDataPoint[key] as number;
             (averagedPoint[key] as number) = (existingValue * existingCount + newValue) / newTotalCount;
+          } else if (newDataPoint[key] !== null && newDataPoint[key] !== undefined) {
+             // For non-numeric or new nullable fields, prefer the new data if it's not null.
+             // @ts-ignore
+            averagedPoint[key] = newDataPoint[key];
           }
         });
         
@@ -174,9 +178,9 @@ export const useBatteryData = () => {
           soc: latestDataPoint.soc,
           voltage: latestDataPoint.voltage,
           current: latestDataPoint.current,
-          maxCellVoltage: latestDataPoint.maxCellVoltage,
-          minCellVoltage: latestDataPoint.minCellVoltage,
-          averageCellVoltage: latestDataPoint.avgCellVoltage,
+          maxCellVoltage: latestDataPoint.maxCellVoltage ?? 0,
+          minCellVoltage: latestDataPoint.minCellVoltage ?? 0,
+          averageCellVoltage: latestDataPoint.avgCellVoltage ?? 0,
         });
         if (JSON.stringify(alerts) !== JSON.stringify(state.alerts)) {
             dispatch({ type: 'SET_ALERTS', payload: alerts });

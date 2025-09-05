@@ -21,6 +21,7 @@ type State = {
 type Action =
   | { type: 'START_LOADING'; payload: { totalFiles: number } }
   | { type: 'STOP_LOADING' }
+  | { type: 'RESET_UPLOAD_STATE' }
   | { type: 'SET_BATTERIES'; payload: { batteries: BatteryCollection, rawBatteries: RawBatteryCollection } }
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
   | { type: 'ADD_DATA'; payload: { data: BatteryDataPoint; dateContext: Date, isFirstUpload: boolean } }
@@ -45,6 +46,8 @@ const reducer = (state: State, action: Action): State => {
       return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
+    case 'RESET_UPLOAD_STATE':
+        return { ...state, isLoading: false, totalFileCount: 0, processedFileCount: 0, uploadProgress: null };
     case 'SET_BATTERIES':
       return { ...state, batteries: action.payload.batteries, rawBatteries: action.payload.rawBatteries };
     case 'SET_CURRENT_BATTERY':
@@ -159,9 +162,6 @@ export const useBatteryData = () => {
     const totalFiles = files.length;
     dispatch({ type: 'START_LOADING', payload: { totalFiles } });
     let successfulUploads = 0;
-    
-    // Flag to track if data was added, to trigger AI calls later
-    let dataAdded = false;
 
     for (const [index, file] of files.entries()) {
       const baseProgress = (index / totalFiles) * 100;
@@ -191,7 +191,6 @@ export const useBatteryData = () => {
         const isFirstUpload = state.currentBatteryId === null && index === 0;
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         successfulUploads++;
-        dataAdded = true;
 
       } catch (error) {
         console.error('Error processing file:', file.name, error);
@@ -206,11 +205,9 @@ export const useBatteryData = () => {
       }
     }
 
-    dispatch({ type: 'STOP_LOADING' });
     // Use a timeout to allow the progress bar to reach 100% and be visible.
     setTimeout(() => {
-      dispatch({ type: 'SET_UPLOAD_PROGRESS', payload: { progress: null, processed: 0 } });
-      dispatch({type: 'START_LOADING', payload: {totalFiles: 0}}) // Reset total files
+      dispatch({ type: 'RESET_UPLOAD_STATE' });
       
       if (successfulUploads > 0) {
           toast({
@@ -317,3 +314,5 @@ export const useBatteryData = () => {
     clearCurrentBatteryData,
   };
 };
+
+    

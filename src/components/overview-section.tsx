@@ -12,6 +12,9 @@ interface OverviewSectionProps {
 }
 
 export default function OverviewSection({ data }: OverviewSectionProps) {
+  // Check if the data timestamp is within the last 4 hours
+  const isDataFresh = new Date().getTime() - new Date(data.timestamp).getTime() < 4 * 60 * 60 * 1000;
+
   return (
     <section className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -22,29 +25,33 @@ export default function OverviewSection({ data }: OverviewSectionProps) {
           <HealthSummary data={data} />
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <MetricCard
-          icon={Zap}
-          title="Voltage"
-          value={data.voltage.toFixed(2)}
-          unit="V"
-          description="Total pack voltage"
-        />
-        <MetricCard
-          icon={ArrowRightLeft}
-          title="Current"
-          value={data.current.toFixed(2)}
-          unit="A"
-          description={data.current > 0 ? "Discharging" : "Charging"}
-        />
-        <MetricCard
-          icon={Bolt}
-          title="Power"
-          value={data.power.toFixed(3)}
-          unit="kW"
-          description="Current power draw"
-        />
-      </div>
+      {isDataFresh && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+          <MetricCard
+            icon={Zap}
+            title="Voltage"
+            value={data.voltage.toFixed(2)}
+            unit="V"
+            description="Total pack voltage"
+          />
+          <MetricCard
+            icon={ArrowRightLeft}
+            title="Current"
+            value={data.current.toFixed(2)}
+            unit="A"
+            description={data.current > 0 ? "Discharging" : "Charging"}
+          />
+          <MetricCard
+            icon={Bolt}
+            title="Power"
+            value={data.power.toFixed(3)}
+            unit="kW"
+            description="Current power draw"
+          />
+        </div>
+      )}
     </section>
   );
 }
+
+    

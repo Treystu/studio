@@ -268,6 +268,15 @@ export const useBatteryData = () => {
   }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, apiKey]);
 
   const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
+     if (!apiKey) {
+      toast({
+        variant: "destructive",
+        title: "API Key Not Found",
+        description: "Please set your Gemini API key in the settings menu before uploading.",
+      });
+      logger.error("Attempted to upload files without an API Key set.");
+      return;
+    }
     logger.info(`Starting upload of ${files.length} files.`);
     dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
     uploadQueue.current.push(...files.map(file => ({ file, dateContext })));
@@ -275,7 +284,7 @@ export const useBatteryData = () => {
     if (!isProcessingQueue.current) {
         processQueue();
     }
-  }, [processQueue]);
+  }, [processQueue, apiKey, toast]);
 
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {

@@ -55,21 +55,20 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
     outputSchema: ExtractDataFromBMSImageOutputSchema,
   },
   async input => {
-    logger.info('HYPER-VERBOSE: extractDataFromBMSImageFlow INVOKED.');
+    logger.info('extractDataFromBMSImageFlow invoked.');
     const { apiKey, ...promptData } = input;
     if (!apiKey) {
-      logger.error('HYPER-VERBOSE CRITICAL: API key is missing in extractDataFromBMSImageFlow');
+      logger.error('CRITICAL: API key is missing in extractDataFromBMSImageFlow');
       throw new Error('API key is required.');
     }
-    logger.info(`HYPER-VERBOSE: extractDataFromBMSImageFlow received API Key: ${apiKey}`);
     
     try {
         const localAi = genkit({
             plugins: [googleAI({ apiKey })],
         });
         
-        const generatePayload = {
-            model: 'googleai/gemini-pro-vision',
+        const { output } = await localAi.generate({
+            model: 'gemini-pro-vision',
             prompt: [
               { text: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
         
@@ -97,21 +96,17 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
             output: {
                 schema: ExtractDataFromBMSImageOutputSchema
             }
-        };
-
-        logger.info('HYPER-VERBOSE: Calling localAi.generate with payload:', JSON.stringify(generatePayload, (key, value) => key === 'photoDataUri' ? `${value.substring(0, 50)}...` : value, 2));
-
-        const { output } = await localAi.generate(generatePayload);
+        });
         
         if (!output) {
-          logger.error('HYPER-VERBOSE: No output from AI');
+          logger.error('No output from AI');
           throw new Error('No output from AI');
         }
 
-        logger.info('HYPER-VERBOSE: extractDataFromBMSImageFlow successful.');
+        logger.info('extractDataFromBMSImageFlow successful.');
         return output;
     } catch (e: any) {
-        logger.error('HYPER-VERBOSE FATAL: Error in extractDataFromBMSImageFlow generate call:', JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
+        logger.error('FATAL: Error in extractDataFromBMSImageFlow generate call:', e);
         throw e;
     }
   }

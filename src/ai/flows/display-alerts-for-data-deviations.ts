@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow to display alerts for major data deviations in battery data.
@@ -55,7 +54,6 @@ const displayAlertsFlow = ai.defineFlow(
       logger.error('CRITICAL: API key is missing in displayAlertsFlow');
       throw new Error('API key is required.');
     }
-    logger.info(`displayAlertsFlow received API Key: ${apiKey}`);
     
     try {
         const localAi = genkit({
@@ -63,7 +61,7 @@ const displayAlertsFlow = ai.defineFlow(
         });
 
         const { output } = await localAi.generate({
-            model: 'googleai/gemini-pro',
+            model: 'gemini-pro',
             prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
           
               Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:

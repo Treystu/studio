@@ -85,6 +85,7 @@ const reducer = (state: State, action: Action): State => {
       const updatedRawBatteries = { ...state.rawBatteries };
       const existingRawData = updatedRawBatteries[batteryId] || [];
       updatedRawBatteries[batteryId] = [...existingRawData, newRawDataPoint].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
+      logger.info(`Raw data for ${batteryId} updated. Total points: ${updatedRawBatteries[batteryId].length}`);
 
       const updatedAveragedBatteries = { ...state.batteries };
       const existingAveragedData = updatedAveragedBatteries[batteryId] || [];
@@ -116,13 +117,16 @@ const reducer = (state: State, action: Action): State => {
         averagedPoint.uploadCount = newTotalCount;
         existingAveragedData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
         updatedAveragedBatteries[batteryId] = [...existingAveragedData];
+        logger.info(`Averaged data point updated for ${batteryId} at hour key ${hourKey}. New count: ${newTotalCount}`);
       } else {
         updatedAveragedBatteries[batteryId] = [...existingAveragedData, newAveragedDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        logger.info(`New averaged data point added for ${batteryId}. Total points: ${updatedAveragedBatteries[batteryId].length}`);
       }
       
       const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
       if (isFirstUpload && !state.currentBatteryId) {
         newState.currentBatteryId = batteryId;
+         logger.info(`This is the first upload. Setting current battery ID to: ${batteryId}`);
       }
       return newState;
     }
@@ -196,6 +200,7 @@ export const useBatteryData = () => {
   }, []);
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
+     logger.info(`PROCESS FILE START: ${file.name}`);
      if (!apiKey) {
       logger.error("PROCESS FILE ABORTED: API Key not available.");
       toast({
@@ -221,7 +226,7 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
         
-        logger.info(`File converted to data URI. Calling 'extractDataFromBMSImage' AI flow...`, {filename: file.name});
+        logger.info(`File converted to data URI. Size: ${dataUri.length}. Calling 'extractDataFromBMSImage' AI flow...`, {filename: file.name});
         const payload = { photoDataUri: dataUri, apiKey };
         const extractedData = await extractDataFromBMSImage(payload);
         logger.info("AI flow 'extractDataFromBMSImage' successful. Extracted data:", extractedData);
@@ -238,6 +243,8 @@ export const useBatteryData = () => {
             duration: 10000,
         });
         return false;
+    } finally {
+        logger.info(`PROCESS FILE END: ${file.name}`);
     }
   }
 
@@ -261,7 +268,7 @@ export const useBatteryData = () => {
 
     isProcessingQueue.current = true;
     const { file, dateContext } = uploadQueue.current[0];
-    logger.info(`Processing next item in queue: ${file.name}`);
+    logger.info(`Processing next item in queue: ${file.name}. Queue length: ${uploadQueue.current.length}`);
     const isFirstUpload = state.currentBatteryId === null;
 
     const success = await processFile(file, dateContext, isFirstUpload);
@@ -351,6 +358,8 @@ export const useBatteryData = () => {
     
     const runAiTasks = async () => {
       logger.info('AI Insights: Starting tasks for battery', latestDataPoint.batteryId);
+      logger.info('AI Insights: Current data point', latestDataPoint);
+      logger.info('AI Insights: Previous data point', previousDataPoint);
       try {
         const commonPayload = {
           apiKey,
@@ -372,7 +381,7 @@ export const useBatteryData = () => {
         
         let alertsPromise;
         if (socChanged || cellDiffChanged) {
-          logger.info('AI Insights: Significant data change detected, checking for alerts.');
+          logger.info('AI Insights: Significant data change detected, checking for alerts.', {socChanged, cellDiffChanged});
           alertsPromise = displayAlertsForDataDeviations(commonPayload);
         } else {
           logger.info('AI Insights: No significant data change, skipping alert check.');
@@ -433,3 +442,5 @@ export const useBatteryData = () => {
     clearCurrentBatteryData,
   };
 };
+
+    

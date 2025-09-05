@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useReducer, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,6 +22,7 @@ type State = {
   uploadProgress: number | null;
   processedFileCount: number;
   totalFileCount: number;
+  apiKey: string | null;
 };
 
 type Action =
@@ -36,7 +36,8 @@ type Action =
   | { type: 'SET_HEALTH_SUMMARY'; payload: string }
   | { type: 'CLEAR_BATTERY_DATA'; payload: string }
   | { type: 'INCREMENT_PROCESSED_COUNT' }
-  | { type: 'SET_UPLOAD_PROGRESS'; payload: { progress: number, processed: number } };
+  | { type: 'SET_UPLOAD_PROGRESS'; payload: { progress: number, processed: number } }
+  | { type: 'SET_API_KEY'; payload: string | null };
 
 const initialState: State = {
   batteries: {},
@@ -48,9 +49,11 @@ const initialState: State = {
   uploadProgress: null,
   processedFileCount: 0,
   totalFileCount: 0,
+  apiKey: null,
 };
 
 const reducer = (state: State, action: Action): State => {
+  logger.info(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload, null, 2) : '');
   switch (action.type) {
     case 'START_LOADING':
       logger.info(`Upload started: ${action.payload.totalFiles} files`);
@@ -142,10 +145,12 @@ const reducer = (state: State, action: Action): State => {
     }
      case 'INCREMENT_PROCESSED_COUNT':
       const newProcessedCount = state.processedFileCount + 1;
-      logger.info(`Processed file ${newProcessedCount}/${state.totalFileCount}`);
+      logger.info(`INCREMENT_PROCESSED_COUNT: ${newProcessedCount}/${state.totalFileCount}`);
       return { ...state, processedFileCount: newProcessedCount, uploadProgress: (newProcessedCount / state.totalFileCount) * 100 };
     case 'SET_UPLOAD_PROGRESS':
       return { ...state, uploadProgress: action.payload.progress, processedFileCount: action.payload.processed };
+    case 'SET_API_KEY':
+        return {...state, apiKey: action.payload};
     default:
       return state;
   }
@@ -179,14 +184,13 @@ export const useBatteryData = () => {
   const isProcessingQueue = useRef(false);
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
   const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
-  const [apiKey, setApiKey] = useState<string | null>(null);
 
   // Effect to load API key from localStorage on mount
   useEffect(() => {
     logger.info("useBatteryData hook mounted. Checking for API Key.");
     const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
     if (storedKey) {
-      setApiKey(storedKey);
+      dispatch({ type: 'SET_API_KEY', payload: storedKey });
       logger.info("API Key found in localStorage.");
     } else {
        logger.warn("API Key not found in localStorage.");
@@ -194,8 +198,8 @@ export const useBatteryData = () => {
   }, []);
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
-    logger.info(`Starting to process file: ${file.name}`);
-     if (!apiKey) {
+    logger.info(`HYPER-VERBOSE: PROCESS FILE START: ${file.name}`);
+     if (!state.apiKey) {
       toast({
         variant: "destructive",
         title: "API Key Required",
@@ -207,7 +211,7 @@ export const useBatteryData = () => {
     try {
         const filenameDate = parseDateFromFilename(file.name);
         const fileDateContext = filenameDate || dateContext;
-        logger.info(`Processing file: ${file.name} with date context: ${fileDateContext.toISOString()}`);
+        logger.info(`HYPER-VERBOSE: Processing file: ${file.name}`, {filenameDate: filenameDate?.toISOString(), contextDate: dateContext.toISOString(), finalDate: fileDateContext.toISOString() });
         
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -216,22 +220,24 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
         
-        logger.info(`File converted to data URI. Calling 'extractDataFromBMSImage' AI flow...`);
-        const payload = { photoDataUri: dataUri, apiKey };
+        logger.info(`HYPER-VERBOSE: File converted to data URI. Size: ${dataUri.length}. Calling 'extractDataFromBMSImage' AI flow...`, {filename: file.name});
+        const payload = { photoDataUri: dataUri, apiKey: state.apiKey };
         
         const extractedData = await extractDataFromBMSImage(payload);
         
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
-        logger.info(`Successfully processed file: ${file.name}`);
+        logger.info(`HYPER-VERBOSE: Successfully processed file: ${file.name}`);
+        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
         return true;
     } catch (error: any) {
-        logger.error(`Error processing file: ${file.name}`, error);
+        logger.error(`HYPER-VERBOSE: Error processing file: ${file.name}`, error);
         toast({
             variant: 'destructive',
             title: `Error processing ${file.name}`,
             description: `Could not extract data. Check logs for details.`,
             duration: 10000,
         });
+        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
         return false;
     }
   }
@@ -243,11 +249,12 @@ export const useBatteryData = () => {
     }
     if (uploadQueue.current.length === 0) {
       logger.info("Process Queue: Queue is empty.");
-      if (state.totalFileCount > 0 && state.processedFileCount === state.totalFileCount) {
+      if (state.totalFileCount > 0) {
+        // Only show toast and reset if there was an upload in progress.
         setTimeout(() => {
             dispatch({ type: 'RESET_UPLOAD_STATE' });
-            if (state.totalFileCount > 0) {
-              toast({ title: 'Upload Complete', description: `${state.totalFileCount} file(s) processed.` });
+            if (state.processedFileCount > 0) {
+              toast({ title: 'Upload Complete', description: `${state.processedFileCount} file(s) processed.` });
             }
         }, 1000);
       }
@@ -268,12 +275,13 @@ export const useBatteryData = () => {
       dispatch({ type: 'RESET_UPLOAD_STATE' }); // Reset loading indicators
     }
     isProcessingQueue.current = false;
-    processQueue();
+    // Use setTimeout to allow the UI to update before the next item is processed.
+    setTimeout(processQueue, 0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, apiKey]);
+  }, [state.currentBatteryId, state.apiKey, state.totalFileCount, state.processedFileCount, toast]);
 
   const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
-     if (!apiKey) {
+     if (!state.apiKey) {
       toast({
         variant: "destructive",
         title: "API Key Not Found",
@@ -290,7 +298,7 @@ export const useBatteryData = () => {
     if (!isProcessingQueue.current) {
         processQueue();
     }
-  }, [processQueue, apiKey, toast]);
+  }, [processQueue, state.apiKey, toast]);
 
 
   const setCurrentBatteryId = useCallback((batteryId: string) => {
@@ -332,7 +340,7 @@ export const useBatteryData = () => {
         clearTimeout(aiTimeoutRef.current);
     }
 
-    if (!latestDataPoint || !apiKey) {
+    if (!latestDataPoint || !state.apiKey) {
       logger.info("AI Insights: Skipping, no latest data point or API key.");
       return;
     }
@@ -343,7 +351,7 @@ export const useBatteryData = () => {
       logger.info("AI Insights: Running scheduled tasks...");
       try {
         const commonPayload = {
-          apiKey,
+          apiKey: state.apiKey as string,
           batteryId: latestDataPoint.batteryId,
           soc: latestDataPoint.soc,
           voltage: latestDataPoint.voltage,
@@ -381,7 +389,7 @@ export const useBatteryData = () => {
             dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
             if (alertsResult.alerts.length > 1) {
                 logger.info("AI Insights: Multiple alerts exist, generating summary.");
-                generateAlertSummary({alerts: alertsResult.alerts, apiKey });
+                generateAlertSummary({alerts: alertsResult.alerts, apiKey: state.apiKey as string });
             }
         }
         
@@ -401,7 +409,7 @@ export const useBatteryData = () => {
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestDataPoint, apiKey]);
+  }, [latestDataPoint, state.apiKey]);
 
 
   return {

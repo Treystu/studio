@@ -2,7 +2,6 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
-import AlertSummary from "./alert-summary";
 
 interface AlertsSectionProps {
   alerts: string[];
@@ -15,7 +14,8 @@ export default function AlertsSection({ alerts }: AlertsSectionProps) {
 
   return (
     <div className="space-y-3">
-      <AlertSummary alerts={alerts} />
+      {/* The AlertSummary component has been removed from here to avoid redundancy. 
+          The main HealthSummary provides a more comprehensive overview. */}
       {alerts.map((alert, index) => (
         <Alert key={index} variant="destructive" className="animate-fade-in-down">
           <AlertTriangle className="h-5 w-5" />

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useBatteryData } from "@/hooks/use-battery-data";
@@ -111,14 +110,14 @@ export default function Dashboard() {
                         <div>
                             <p className="font-semibold text-amber-700 dark:text-amber-300">You are viewing historical data</p>
                             <p className="text-sm text-amber-600 dark:text-amber-400">
-                                The metrics shown are from the last known reading ({timeAgo}). Live data is not available.
+                                The metrics shown below are from your selected timeframe. Live data is not displayed.
                             </p>
                         </div>
                     </CardContent>
                 </Card>
             )}
             <AlertsSection alerts={alerts} />
-            {latestDataPoint && (
+            {isDataFresh && latestDataPoint && (
               <div className="grid grid-cols-1 gap-8 animate-fade-in">
                 <PowerRecommendation latestDataPoint={latestDataPoint} />
                 <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>

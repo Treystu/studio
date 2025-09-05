@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { generateAlertSummary } from '@/ai/flows/generate-alert-summary';
 import { Info } from 'lucide-react';
+import { useBatteryData } from '@/hooks/use-battery-data';
 
 interface AlertSummaryProps {
   alerts: string[];
@@ -13,16 +14,17 @@ interface AlertSummaryProps {
 export default function AlertSummary({ alerts }: AlertSummaryProps) {
   const [summary, setSummary] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const { apiKey } = useBatteryData();
 
   useEffect(() => {
     async function getSummary() {
-      if (alerts.length <= 1) {
+      if (alerts.length <= 1 || !apiKey) {
           setIsLoading(false);
           return;
       }
       setIsLoading(true);
       try {
-        const result = await generateAlertSummary({ alerts });
+        const result = await generateAlertSummary({ alerts, apiKey });
         setSummary(result.summary);
       } catch (error) {
         console.error("Failed to generate alert summary:", error);
@@ -32,7 +34,7 @@ export default function AlertSummary({ alerts }: AlertSummaryProps) {
       }
     }
     getSummary();
-  }, [alerts]);
+  }, [alerts, apiKey]);
   
   if (alerts.length <= 1) return null;
 

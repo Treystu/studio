@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -7,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { generatePowerRecommendation } from '@/ai/flows/generate-power-recommendation';
 import { BrainCircuit } from 'lucide-react';
 import type { BatteryDataPointWithDate } from '@/lib/types';
+import { useBatteryData } from '@/hooks/use-battery-data';
 
 interface PowerRecommendationProps {
   latestDataPoint: BatteryDataPointWithDate;
@@ -15,18 +15,19 @@ interface PowerRecommendationProps {
 export default function PowerRecommendation({ latestDataPoint }: PowerRecommendationProps) {
   const [recommendation, setRecommendation] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const { apiKey } = useBatteryData();
 
   useEffect(() => {
     async function getRecommendation() {
-      if (!latestDataPoint) return;
+      if (!latestDataPoint || !apiKey) return;
 
       setIsLoading(true);
       try {
         const result = await generatePowerRecommendation({
             soc: latestDataPoint.soc,
             power: latestDataPoint.power,
-            // Hardcoding location for now. We can make this dynamic later.
-            location: "Pahoa, HI"
+            location: "Pahoa, HI", // Hardcoded for now
+            apiKey
         });
         setRecommendation(result.recommendation);
       } catch (error) {
@@ -37,7 +38,7 @@ export default function PowerRecommendation({ latestDataPoint }: PowerRecommenda
       }
     }
     getRecommendation();
-  }, [latestDataPoint]);
+  }, [latestDataPoint, apiKey]);
 
   return (
     <Card className="animate-fade-in-down shadow-lg hover:shadow-xl transition-shadow duration-300">

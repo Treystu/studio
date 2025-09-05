@@ -52,7 +52,7 @@ const extractDataPrompt = ai.definePrompt({
     name: 'extractDataPrompt',
     input: { schema: ExtractDataFromBMSImagesInputSchema },
     output: { schema: ExtractDataFromBMSImagesOutputSchema },
-    model: 'googleai/gemini-pro-vision',
+    model: 'googleai/gemini-1.0-pro-vision',
     prompt: `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.
     
       Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.

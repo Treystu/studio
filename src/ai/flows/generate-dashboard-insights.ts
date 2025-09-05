@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -89,18 +90,11 @@ const generateDashboardInsightsFlow = ai.defineFlow(
       throw new Error('Server is not configured with an API key.');
     }
 
-    try {
-      const {output} = await insightsPrompt(input, {
-        auth: {apiKey: process.env.GEMINI_API_KEY},
-      });
-      if (!output) {
-        throw new Error('No output from AI');
-      }
-      logger.info('generateDashboardInsightsFlow successful.');
-      return output;
-    } catch (e: any) {
-      logger.error('Error in generateDashboardInsightsFlow generate call:', e);
-      throw e;
+    const {output} = await insightsPrompt(input);
+    if (!output) {
+      throw new Error('No output from AI');
     }
+    logger.info('generateDashboardInsightsFlow successful.');
+    return output;
   }
 );

@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -30,7 +31,7 @@ export default function FreshInsights({ insights, isLoading, onGenerate }: Fresh
   const hasGenerated = insights.length > 0;
   
   const renderContent = () => {
-    if (isLoading && !hasGenerated) {
+    if (isLoading) {
         return (
              <div className="space-y-4 pt-2">
                 <div className="space-y-2">
@@ -52,7 +53,7 @@ export default function FreshInsights({ insights, isLoading, onGenerate }: Fresh
         <div className="text-center py-4">
           <p className="text-sm text-muted-foreground mb-3">Get AI-powered insights and predictions based on the latest data.</p>
           <Button onClick={onGenerate} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+            <BrainCircuit className="mr-2 h-4 w-4" />
             Generate Fresh Insights
           </Button>
         </div>

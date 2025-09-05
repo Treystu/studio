@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -13,8 +14,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import { googleAI } from '@genkit-ai/googleai';
-import { genkit } from 'genkit';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
@@ -63,18 +62,13 @@ const generateAlertSummaryFlow = ai.defineFlow(
         throw new Error('Server is not configured with an API key.');
     }
     
-    try {
-        const { output } = await generateAlertSummaryPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
-        
-        if (!output) {
-          throw new Error('No output from AI');
-        }
-
-        logger.info('generateAlertSummaryFlow successful.');
-        return output;
-    } catch (e: any) {
-        logger.error('Error in generateAlertSummaryFlow generate call:', e);
-        throw e;
+    const { output } = await generateAlertSummaryPrompt(input);
+    
+    if (!output) {
+      throw new Error('No output from AI');
     }
+
+    logger.info('generateAlertSummaryFlow successful.');
+    return output;
   }
 );

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow to display alerts for major data deviations in battery data.
@@ -13,8 +14,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import { googleAI } from '@genkit-ai/googleai';
-import { genkit } from 'genkit';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -77,18 +76,13 @@ const displayAlertsFlow = ai.defineFlow(
         throw new Error('Server is not configured with an API key.');
     }
 
-    try {
-        const { output } = await displayAlertsPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
+    const { output } = await displayAlertsPrompt(input);
 
-        if (!output) {
-            throw new Error('No output from AI');
-        }
-
-        logger.info('displayAlertsFlow successful for:', input.batteryId);
-        return output;
-    } catch (e: any) {
-        logger.error('Error in displayAlertsFlow generate call:', e);
-        throw e;
+    if (!output) {
+        throw new Error('No output from AI');
     }
+
+    logger.info('displayAlertsFlow successful for:', input.batteryId);
+    return output;
   }
 );

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useReducer, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useReducer, useCallback, useEffect, useMemo } from 'react';
 import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, Insight, RawBatteryCollection, RawBatteryDataPoint } from '@/lib/types';
 import { extractDataFromBMSImages } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
@@ -20,17 +20,14 @@ type State = {
   alerts: string[];
   healthSummary: string;
   insights: Insight[];
-  isInsightsLoading: boolean;
   uploadProgress: number | null;
   processedFileCount: number;
   totalFileCount: number;
 };
 
 type Action =
-  | { type: 'START_LOADING'; payload: { totalFiles: number } }
+  | { type: 'START_LOADING'; payload?: { totalFiles: number } }
   | { type: 'STOP_LOADING' }
-  | { type: 'START_INSIGHTS_LOADING' }
-  | { type: 'STOP_INSIGHTS_LOADING' }
   | { type: 'RESET_UPLOAD_STATE' }
   | { type: 'SET_BATTERIES'; payload: { batteries: BatteryCollection, rawBatteries: RawBatteryCollection } }
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
@@ -49,24 +46,18 @@ const initialState: State = {
   alerts: [],
   healthSummary: '',
   insights: [],
-  isInsightsLoading: false,
   uploadProgress: null,
   processedFileCount: 0,
   totalFileCount: 0,
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload, null, 2).substring(0, 300) + '...' : '');
+  logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload).substring(0, 300) + '...' : '');
   switch (action.type) {
     case 'START_LOADING':
-      logger.log(`Upload started: ${action.payload.totalFiles} files`);
-      return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
+      return { ...state, isLoading: true, totalFileCount: action.payload?.totalFiles ?? state.totalFileCount, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
-    case 'START_INSIGHTS_LOADING':
-      return { ...state, isInsightsLoading: true };
-    case 'STOP_INSIGHTS_LOADING':
-        return { ...state, isInsightsLoading: false };
     case 'RESET_UPLOAD_STATE':
         return { ...state, isLoading: false, totalFileCount: 0, processedFileCount: 0, uploadProgress: null };
     case 'SET_BATTERIES':
@@ -173,7 +164,7 @@ export const useBatteryData = () => {
     const isDataFresh = differenceInHours(new Date(), new Date(latestDataPoint.timestamp)) < 12;
   
     logger.log("AI Insights: User requested insights...");
-    dispatch({ type: 'START_INSIGHTS_LOADING' });
+    dispatch({ type: 'START_LOADING' });
     try {
       if (isDataFresh) {
         logger.log("AI Insights: Data is fresh, getting dashboard insights.");
@@ -218,7 +209,7 @@ export const useBatteryData = () => {
       logger.error("AI Insights: Error running tasks:", error);
       toast({ variant: 'destructive', title: 'AI Error', description: 'Could not generate AI insights.'});
     } finally {
-        dispatch({ type: 'STOP_INSIGHTS_LOADING'});
+        dispatch({ type: 'STOP_LOADING'});
     }
   }, [state.currentBatteryId, state.batteries, toast]);
 
@@ -300,7 +291,6 @@ export const useBatteryData = () => {
   
   return {
     ...state,
-    isInsightsLoading: state.isInsightsLoading,
     currentBatteryData,
     currentBatteryRawData,
     latestDataPoint,
@@ -310,3 +300,4 @@ export const useBatteryData = () => {
     getAiInsights,
   };
 };
+

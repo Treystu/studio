@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -11,8 +12,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import { googleAI } from '@genkit-ai/googleai';
-import { genkit } from 'genkit';
 
 const ExtractDataFromBMSImagesInputSchema = z.object({
   photoDataUris: z.array(
@@ -97,18 +96,13 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
         throw new Error('Server is not configured with an API key.');
     }
 
-    try {
-        const { output } = await extractDataPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
-        
-        if (!output) {
-          throw new Error('No output from AI');
-        }
-
-        logger.info(`extractDataFromBMSImagesFlow successful. Extracted data for ${output.results.length} images.`);
-        return output;
-    } catch (e: any) {
-        logger.error('Error in extractDataFromBMSImagesFlow generate call:', e);
-        throw e;
+    const { output } = await extractDataPrompt(input);
+    
+    if (!output) {
+      throw new Error('No output from AI');
     }
+
+    logger.info(`extractDataFromBMSImagesFlow successful. Extracted data for ${output.results.length} images.`);
+    return output;
   }
 );

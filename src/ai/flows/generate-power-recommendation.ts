@@ -9,7 +9,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { APIError } from 'genkit';
 import { logger } from '@/lib/logger';
 
 // == Weather Tool Definition (Co-located) == //
@@ -34,7 +33,7 @@ const weatherForecastSchema = z.object({
   ),
 });
 
-const getWeatherForecast = ai.defineTool(
+export const getWeatherForecast = ai.defineTool(
   {
     name: 'getWeatherForecast',
     description: 'Returns a 3-day weather forecast for a given location.',
@@ -169,21 +168,16 @@ const generatePowerRecommendationFlow = ai.defineFlow(
 
     if (!process.env.GEMINI_API_KEY) {
       logger.error('API key is missing in generatePowerRecommendationFlow');
-      throw new APIError(400, 'Server is not configured with an API key.');
+      throw new Error('Server is not configured with an API key.');
     }
     
-    try {
-      const { output } = await generatePowerRecommendationPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
+    const { output } = await generatePowerRecommendationPrompt(input);
 
-      if (!output) {
-        throw new Error('No output from AI');
-      }
-
-      logger.info('generatePowerRecommendationFlow successful for:', input.location);
-      return output;
-    } catch (e: any) {
-      logger.error('Error in generatePowerRecommendationFlow generate call:', e);
-      throw e;
+    if (!output) {
+      throw new Error('No output from AI');
     }
+
+    logger.info('generatePowerRecommendationFlow successful for:', input.location);
+    return output;
   }
 );

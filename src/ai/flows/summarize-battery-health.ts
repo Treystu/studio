@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -10,8 +11,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
-import { googleAI } from '@genkit-ai/googleai';
-import { genkit } from 'genkit';
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -64,18 +63,13 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
         throw new Error('Server is not configured with an API key.');
     }
 
-    try {
-        const { output } = await summarizeBatteryHealthPrompt(input, { auth: { apiKey: process.env.GEMINI_API_KEY } });
-        
-        if (!output) {
-            throw new Error('No output from AI');
-        }
-
-        logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
-        return output;
-    } catch (e: any) {
-        logger.error('Error in summarizeBatteryHealthFlow generate call:', e);
-        throw e;
+    const { output } = await summarizeBatteryHealthPrompt(input);
+    
+    if (!output) {
+        throw new Error('No output from AI');
     }
+
+    logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
+    return output;
   }
 );

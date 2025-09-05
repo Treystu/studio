@@ -41,7 +41,6 @@ export default function Dashboard() {
     processedFileCount,
     totalFileCount,
     insights,
-    isInsightsLoading,
     getAiInsights,
   } = useBatteryData();
 
@@ -57,6 +56,86 @@ export default function Dashboard() {
 
   const isDataFresh = latestDataPoint ? differenceInHours(new Date(), new Date(latestDataPoint.timestamp)) < 12 : false;
   const timeAgo = latestDataPoint ? formatDistanceToNow(new Date(latestDataPoint.timestamp), { addSuffix: true }) : '';
+
+  const renderContent = () => {
+    if (isInitialLoading) {
+      return (
+         <div className="space-y-8">
+           <Skeleton className="h-48 w-full" />
+           <Skeleton className="h-64 w-full" />
+           <Skeleton className="h-96 w-full" />
+         </div>
+      );
+    }
+    
+    if (!currentBatteryId) {
+      return (
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <Card className="w-full max-w-md text-center shadow-lg animate-fade-in">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold">Welcome to BatteryView</CardTitle>
+              <CardDescription>Upload your BMS screenshots to get started.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Battery className="mx-auto h-24 w-24 text-primary mb-4" />
+              <p className="text-sm text-muted-foreground">Click the "Upload Screenshots" button in the header.</p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    
+    if (!hasData) {
+      return (
+           <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+              <Card className="w-full max-w-md text-center shadow-lg animate-fade-in">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-bold">No Data Available</CardTitle>
+                  <CardDescription>Upload screenshots for battery '{currentBatteryId}' using the date picker for context.</CardDescription>
+                </Header>
+                <CardContent>
+                  <Battery className="mx-auto h-24 w-24 text-primary mb-4" />
+                </CardContent>
+              </Card>
+            </div>
+      );
+    }
+    
+    // Main content when data is available
+    return (
+        <>
+            {isDataFresh && latestDataPoint && (
+                <FreshInsights 
+                    insights={insights}
+                    isLoading={isLoading && insights.length === 0}
+                    onGenerate={getAiInsights}
+                />
+            )}
+            
+            {isDataFresh && latestDataPoint ? (
+              <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                <AlertsSection alerts={alerts} />
+                <PowerRecommendation latestDataPoint={latestDataPoint} />
+                <OverviewSection data={latestDataPoint} healthSummary={healthSummary} isSummaryLoading={isLoading && !healthSummary} onGenerateSummary={getAiInsights} />
+                <MetricsSection data={latestDataPoint} />
+              </div>
+            ) : (
+                <Card className="animate-fade-in bg-amber-500/10 border-amber-500/30">
+                    <CardContent className="flex items-center gap-3 p-4">
+                        <Battery className="h-5 w-5 text-amber-500" />
+                        <div>
+                            <p className="font-semibold text-amber-700 dark:text-amber-300">Viewing Historical Data</p>
+                            <p className="text-sm text-amber-600 dark:text-amber-400">
+                                The metrics below are from the last known reading on this day ({timeAgo}).
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+             <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
+        </>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -75,71 +154,9 @@ export default function Dashboard() {
         totalFileCount={totalFileCount}
       />
       <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-8">
-        {isInitialLoading ? (
-           <div className="space-y-8">
-             <Skeleton className="h-48 w-full" />
-             <Skeleton className="h-64 w-full" />
-             <Skeleton className="h-96 w-full" />
-           </div>
-        ) : !currentBatteryId ? (
-          <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-            <Card className="w-full max-w-md text-center shadow-lg animate-fade-in">
-              <CardHeader>
-                <CardTitle className="text-2xl font-bold">Welcome to BatteryView</CardTitle>
-                <CardDescription>Upload your BMS screenshots to get started.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Battery className="mx-auto h-24 w-24 text-primary mb-4" />
-                <p className="text-sm text-muted-foreground">Click the "Upload Screenshots" button in the header.</p>
-              </CardContent>
-            </Card>
-          </div>
-        ) : !hasData ? (
-             <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-                <Card className="w-full max-w-md text-center shadow-lg animate-fade-in">
-                  <CardHeader>
-                    <CardTitle className="text-2xl font-bold">No Data Available</CardTitle>
-                    <CardDescription>Upload screenshots for battery '{currentBatteryId}' using the date picker for context.</CardDescription>
-                  </Header>
-                  <CardContent>
-                    <Battery className="mx-auto h-24 w-24 text-primary mb-4" />
-                  </CardContent>
-                </Card>
-              </div>
-        ) : (
-          <>
-             {isDataFresh && latestDataPoint && (
-                <FreshInsights 
-                    insights={insights}
-                    isLoading={isInsightsLoading}
-                    onGenerate={getAiInsights}
-                />
-            )}
-            
-            {isDataFresh && latestDataPoint ? (
-              <div className="grid grid-cols-1 gap-8 animate-fade-in">
-                <AlertsSection alerts={alerts} />
-                <PowerRecommendation latestDataPoint={latestDataPoint} />
-                <OverviewSection data={latestDataPoint} healthSummary={healthSummary} isSummaryLoading={isInsightsLoading} onGenerateSummary={getAiInsights} />
-                <MetricsSection data={latestDataPoint} />
-              </div>
-            ) : (
-                <Card className="animate-fade-in bg-amber-500/10 border-amber-500/30">
-                    <CardContent className="flex items-center gap-3 p-4">
-                        <Battery className="h-5 w-5 text-amber-500" />
-                        <div>
-                            <p className="font-semibold text-amber-700 dark:text-amber-300">Viewing Historical Data</p>
-                            <p className="text-sm text-amber-600 dark:text-amber-400">
-                                The metrics below are from the last known reading on this day ({timeAgo}).
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-             <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
-          </>
-        )}
+        {renderContent()}
       </main>
     </div>
   );
 }
+

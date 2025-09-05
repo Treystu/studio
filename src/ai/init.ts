@@ -18,8 +18,14 @@ export function dynamicallyInitializeGoogleAI() {
 
   logger.info('Dynamically initializing Google AI plugin...');
   
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    logger.error('GEMINI_API_KEY environment variable not found.');
+    throw new Error('GEMINI_API_KEY environment variable not set. The API key is required to use Google AI models.');
+  }
+
   const genkitOptions: GenkitOptions = {
-    plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
+    plugins: [googleAI({ apiKey })],
   };
 
   // We are not calling genkit() here because it's already been called in genkit.ts

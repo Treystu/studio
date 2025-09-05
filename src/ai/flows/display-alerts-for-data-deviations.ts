@@ -18,9 +18,9 @@ const DisplayAlertsInputSchema = z.object({
   soc: z.number().describe('The current State of Charge (SOC) of the battery.'),
   voltage: z.number().describe('The current voltage of the battery.'),
   current: z.number().describe('The current of the battery.'),
-  maxCellVoltage: z.number().describe('The maximum cell voltage.'),
-  minCellVoltage: z.number().describe('The minimum cell voltage.'),
-  averageCellVoltage: z.number().describe('The average cell voltage.'),
+  maxCellVoltage: z.number().nullable().describe('The maximum cell voltage. Can be null if data is missing.'),
+  minCellVoltage: z.number().nullable().describe('The minimum cell voltage. Can be null if data is missing.'),
+  averageCellVoltage: z.number().nullable().describe('The average cell voltage. Can be null if data is missing.'),
 });
 export type DisplayAlertsInput = z.infer<typeof DisplayAlertsInputSchema>;
 
@@ -46,6 +46,8 @@ const displayAlertsPrompt = ai.definePrompt({
   Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
   1. A rapid drop in SOC (State of Charge).
   2. A high voltage difference between cells (maxCellVoltage - minCellVoltage).
+
+  If maxCellVoltage or minCellVoltage are null or 0, do not generate an alert for cell voltage inconsistency. Only generate alerts for valid, non-zero voltage readings that indicate a problem.
 
   Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
 

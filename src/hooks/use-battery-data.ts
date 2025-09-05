@@ -178,9 +178,9 @@ export const useBatteryData = () => {
           soc: latestDataPoint.soc,
           voltage: latestDataPoint.voltage,
           current: latestDataPoint.current,
-          maxCellVoltage: latestDataPoint.maxCellVoltage ?? 0,
-          minCellVoltage: latestDataPoint.minCellVoltage ?? 0,
-          averageCellVoltage: latestDataPoint.avgCellVoltage ?? 0,
+          maxCellVoltage: latestDataPoint.maxCellVoltage ?? null,
+          minCellVoltage: latestDataPoint.minCellVoltage ?? null,
+          averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
         });
         if (JSON.stringify(alerts) !== JSON.stringify(state.alerts)) {
             dispatch({ type: 'SET_ALERTS', payload: alerts });

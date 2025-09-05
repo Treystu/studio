@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useReducer, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,6 +9,8 @@ import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
 import { generateAlertSummary } from '@/ai/flows/generate-alert-summary';
 import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
 
 const API_KEY_STORAGE_KEY = "gemini_api_key";
 
@@ -178,10 +181,10 @@ export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { toast } = useToast();
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isAiRunning = useRef(false);
+  const isProcessingQueue = useRef(false);
+  const isAiRunning = useRef(isProcessingQueue.current);
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
   const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
-  const isProcessingQueue = useRef(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -231,32 +234,26 @@ export const useBatteryData = () => {
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         return true;
     } catch (error: any) {
-        logger.error(`Error processing file: ${file.name}`, error);
-        const errorMessage = error.message || "An unknown error occurred.";
-        const errorStack = error.stack || "No stack trace available.";
-        logger.error(`Full error details:`, {errorMessage, errorStack, cause: error.cause});
-
-        if (error.cause && error.cause.status) {
-            logger.error(`Server responded with status: ${error.cause.status}`);
-        }
+        logger.error(`Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
 
         toast({
             variant: 'destructive',
             title: `Error processing ${file.name}`,
-            description: `Could not extract data. ${errorMessage}. Check logs for details.`,
+            description: `Could not extract data. Check logs for details.`,
             duration: 10000,
         });
         
-        if (errorMessage.includes('429') || errorMessage.includes('quota')) {
+        if (error.message && (error.message.includes('429') || error.message.includes('quota'))) {
              toast({
                 variant: 'destructive',
                 title: 'API Rate limit reached',
                 description: `Pausing uploads. Will retry in 1 minute.`,
             });
-            return false; // Failure, needs retry
         }
-
-        return true; // Success (to continue queue), but file failed.
+        
+        // This was the bug: not resetting the state on failure.
+        dispatch({ type: 'RESET_UPLOAD_STATE' });
+        return false;
     }
   }
 
@@ -285,17 +282,18 @@ export const useBatteryData = () => {
 
     const success = await processFile(file, dateContext, isFirstUpload);
 
+    uploadQueue.current.shift(); // Always remove from queue, success or fail
+    dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
+    isProcessingQueue.current = false;
+
     if (success) {
-      uploadQueue.current.shift(); // Remove from queue
-      dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
-      isProcessingQueue.current = false;
       // Immediately process the next item
       processQueue(); 
     } else {
-      // Failure, likely rate-limiting. Pause and retry.
-      logger.warn('File processing failed, pausing queue for 1 minute.');
-      isProcessingQueue.current = false;
-      setTimeout(processQueue, 60000); 
+      // Failure, empty the rest of the queue and reset.
+      logger.warn('File processing failed, clearing remainder of upload queue.');
+      uploadQueue.current = [];
+      dispatch({ type: 'RESET_UPLOAD_STATE' });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.currentBatteryId, state.processedFileCount, state.totalFileCount, apiKey]);
@@ -462,3 +460,5 @@ export const useBatteryData = () => {
     clearCurrentBatteryData,
   };
 };
+
+    

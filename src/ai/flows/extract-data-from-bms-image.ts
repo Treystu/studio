@@ -68,7 +68,7 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
         });
 
         const { output } = await localAi.generate({
-            model: 'googleai/gemini-pro-vision',
+            model: 'gemini-pro-vision',
             prompt: [
               { text: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
         

@@ -62,7 +62,7 @@ const displayAlertsFlow = ai.defineFlow(
         });
 
         const { output } = await localAi.generate({
-            model: 'googleai/gemini-pro',
+            model: 'gemini-pro',
             prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
           
               Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:

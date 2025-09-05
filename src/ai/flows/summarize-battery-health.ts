@@ -59,7 +59,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
         });
 
         const { output } = await localAi.generate({
-            model: 'googleai/gemini-pro',
+            model: 'gemini-pro',
             prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
           
               Based on the following battery data, provide a concise summary of the battery's current health status. Include key metrics such as SOC, voltage, and any significant deviations.

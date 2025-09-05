@@ -15,11 +15,12 @@ import { logger } from '@/lib/logger';
 import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const ExtractDataFromBMSImagesInputSchema = z.object({
-  photoDataUris: z.array(
+  photoUrls: z.array(
     z
     .string()
+    .url()
     .describe(
-      "A photo of a BMS screenshot, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A URL to a photo of a BMS screenshot."
     ))
 });
 export type ExtractDataFromBMSImagesInput = z.infer<typeof ExtractDataFromBMSImagesInputSchema>;
@@ -73,7 +74,7 @@ const extractDataPrompt = ai.definePrompt({
   
       Return all extracted data points in a single JSON object containing a "results" array.
       
-      {{#each photoDataUris}}
+      {{#each photoUrls}}
       {{media url=this}}
       {{/each}}
     `,
@@ -90,7 +91,7 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
     outputSchema: ExtractDataFromBMSImagesOutputSchema,
   },
   async input => {
-    logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoDataUris.length} images.`);
+    logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoUrls.length} images.`);
     dynamicallyInitializeGoogleAI();
 
     const { output } = await extractDataPrompt(input);

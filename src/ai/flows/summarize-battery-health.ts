@@ -2,12 +2,11 @@
 'use server';
 
 /**
- * @fileOverview This file defines a Genkit flow to summarize the battery's health based on extracted data.
- *
- * - summarizeBatteryHealth - A function that triggers the health summary generation.
- * - SummarizeBatteryHealthInput - The input type for the summarizeBatteryHealth function.
- * - SummarizeBatteryHealthOutput - The return type for the summarizeBatteryHealth function.
- */
+ * This file defines a Genkit flow to summarize the battery's health based on extracted data.
+- summarizeBatteryHealth: A function that triggers the health summary generation.
+- SummarizeBatteryHealthInput: The input type for the summarizeBatteryHealth function.
+- SummarizeBatteryHealthOutput: The return type for the summarizeBatteryHealth function.
+*/
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
@@ -52,12 +51,14 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
       throw new Error('API key is required.');
     }
     
+    logger.info(`HYPER-VERBOSE: summarizeBatteryHealthFlow received API Key: ${apiKey.substring(0, 5)}...`);
+
     try {
         const localAi = genkit({
             plugins: [googleAI({ apiKey })],
         });
 
-        const { output } = await localAi.generate({
+        const payload = {
             model: 'gemini-pro',
             prompt: `You are an AI assistant specializing in summarizing battery health.
           
@@ -78,7 +79,11 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
             output: {
                 schema: SummarizeBatteryHealthOutputSchema
             }
-        });
+        };
+        
+        logger.info('HYPER-VERBOSE: Calling localAi.generate with payload:', payload);
+
+        const { output } = await localAi.generate(payload);
         
         if (!output) {
             throw new Error('No output from AI');
@@ -87,7 +92,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
         logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
         return output;
     } catch (e: any) {
-        logger.error('FATAL: Error in summarizeBatteryHealthFlow generate call:', e);
+        logger.error('HYPER-VERBOSE FATAL: Error in summarizeBatteryHealthFlow generate call:', JSON.stringify(e, null, 2));
         throw e;
     }
   }

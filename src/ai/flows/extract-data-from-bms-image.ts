@@ -62,12 +62,14 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
       throw new Error('API key is required.');
     }
     
+    logger.info(`HYPER-VERBOSE: extractDataFromBMSImageFlow received API Key: ${apiKey.substring(0, 5)}...`);
+    
     try {
         const localAi = genkit({
             plugins: [googleAI({ apiKey })],
         });
         
-        const { output } = await localAi.generate({
+        const payload = {
             model: 'gemini-pro-vision',
             prompt: [
               { text: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
@@ -96,7 +98,11 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
             output: {
                 schema: ExtractDataFromBMSImageOutputSchema
             }
-        });
+        };
+
+        logger.info('HYPER-VERBOSE: Calling localAi.generate with payload:', JSON.parse(JSON.stringify(payload)));
+
+        const { output } = await localAi.generate(payload);
         
         if (!output) {
           logger.error('No output from AI');
@@ -106,7 +112,7 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
         logger.info('extractDataFromBMSImageFlow successful.');
         return output;
     } catch (e: any) {
-        logger.error('FATAL: Error in extractDataFromBMSImageFlow generate call:', e);
+        logger.error('HYPER-VERBOSE FATAL: Error in extractDataFromBMSImageFlow generate call:', JSON.stringify(e, null, 2));
         throw e;
     }
   }

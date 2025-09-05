@@ -51,9 +51,10 @@ const initialState: State = {
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.info(`ACTION: ${action.type}`, action.payload || '');
+  logger.info(`ACTION: ${action.type}`, JSON.parse(JSON.stringify(action)));
   switch (action.type) {
     case 'START_LOADING':
+       logger.info(`START_LOADING: ${action.payload.totalFiles} files`);
       return { ...state, isLoading: true, totalFileCount: action.payload.totalFiles, processedFileCount: 0, uploadProgress: 0 };
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
@@ -66,6 +67,7 @@ const reducer = (state: State, action: Action): State => {
     case 'ADD_DATA': {
       const { data, dateContext, isFirstUpload } = action.payload;
       const { batteryId } = data;
+      logger.info('ADD_DATA: Adding data for battery:', batteryId);
 
       const timeParts = data.timestamp.split(':').map(Number);
 
@@ -73,6 +75,8 @@ const reducer = (state: State, action: Action): State => {
       if (newTimestamp.getHours() === 0 && newTimestamp.getMinutes() === 0 && newTimestamp.getSeconds() === 0) {
         newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
       }
+      logger.info(`ADD_DATA: Final timestamp determined as: ${newTimestamp.toISOString()}`);
+
 
       const newRawDataPoint: RawBatteryDataPoint = { ...data, timestamp: newTimestamp };
       const newAveragedDataPoint: BatteryDataPointWithDate = { ...data, timestamp: newTimestamp, uploadCount: 1 };
@@ -92,6 +96,7 @@ const reducer = (state: State, action: Action): State => {
       });
 
       if (existingIndex !== -1) {
+        logger.info('ADD_DATA: Found existing data point for this hour. Averaging values.');
         const existingPoint = existingAveragedData[existingIndex];
         const averagedPoint = { ...existingPoint };
 
@@ -112,11 +117,13 @@ const reducer = (state: State, action: Action): State => {
         existingAveragedData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
         updatedAveragedBatteries[batteryId] = [...existingAveragedData];
       } else {
+        logger.info('ADD_DATA: No existing data for this hour. Adding new point.');
         updatedAveragedBatteries[batteryId] = [...existingAveragedData, newAveragedDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       }
       
       const newState = { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
       if (isFirstUpload && !state.currentBatteryId) {
+        logger.info(`ADD_DATA: This is the first upload. Setting current battery to: ${batteryId}`);
         newState.currentBatteryId = batteryId;
       }
       return newState;
@@ -136,6 +143,7 @@ const reducer = (state: State, action: Action): State => {
     }
      case 'INCREMENT_PROCESSED_COUNT':
       const newProcessedCount = state.processedFileCount + 1;
+      logger.info(`INCREMENT_PROCESSED_COUNT: ${newProcessedCount}/${state.totalFileCount}`);
       return { ...state, processedFileCount: newProcessedCount, uploadProgress: (newProcessedCount / state.totalFileCount) * 100 };
     case 'SET_UPLOAD_PROGRESS':
       return { ...state, uploadProgress: action.payload.progress, processedFileCount: action.payload.processed };
@@ -187,6 +195,7 @@ export const useBatteryData = () => {
   }, []);
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
+    logger.info(`HYPER-VERBOSE: PROCESS FILE START: ${file.name}`);
      if (!apiKey) {
       toast({
         variant: "destructive",
@@ -197,7 +206,9 @@ export const useBatteryData = () => {
     }
 
     try {
-        const fileDateContext = parseDateFromFilename(file.name) || dateContext;
+        const filenameDate = parseDateFromFilename(file.name);
+        const fileDateContext = filenameDate || dateContext;
+        logger.info(`HYPER-VERBOSE: Processing file: ${file.name}`, { filenameDate: filenameDate?.toISOString(), contextDate: dateContext.toISOString(), finalDate: fileDateContext.toISOString() });
         
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -206,13 +217,17 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
         
+        logger.info(`HYPER-VERBOSE: File converted to data URI. Size: ${dataUri.length}. Calling 'extractDataFromBMSImage' AI flow...`, { filename: file.name });
         const payload = { photoDataUri: dataUri, apiKey };
+        logger.info("HYPER-VERBOSE: Payload to be sent to AI Flow:", { photoDataUri: `data:image/png;base64,${dataUri.substring(22, 52)}...`, apiKey: `...${apiKey.slice(-5)}`});
+        
         const extractedData = await extractDataFromBMSImage(payload);
         
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
+        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
         return true;
     } catch (error: any) {
-        logger.error(`Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
+        logger.error(`HYPER-VERBOSE: Error processing file: ${file.name}`, error);
 
         toast({
             variant: 'destructive',
@@ -220,15 +235,18 @@ export const useBatteryData = () => {
             description: `Could not extract data. Check logs for details.`,
             duration: 10000,
         });
+        logger.info(`HYPER-VERBOSE: PROCESS FILE END: ${file.name}`);
         return false;
     }
   }
 
   const processQueue = useCallback(async () => {
     if (isProcessingQueue.current) {
+        logger.info("Process Queue: Already processing, returning.");
         return;
     }
     if (uploadQueue.current.length === 0) {
+      logger.info("Process Queue: Queue is empty.");
       if (state.totalFileCount > 0 && state.processedFileCount === state.totalFileCount) {
         setTimeout(() => {
             dispatch({ type: 'RESET_UPLOAD_STATE' });
@@ -241,15 +259,14 @@ export const useBatteryData = () => {
     }
 
     isProcessingQueue.current = true;
-    const { file, dateContext } = uploadQueue.current[0];
+    logger.info(`Processing next item in queue: ${uploadQueue.current[0].file.name}. Queue length: ${uploadQueue.current.length}`);
+    const { file, dateContext } = uploadQueue.current.shift()!;
     const isFirstUpload = state.currentBatteryId === null;
 
     const success = await processFile(file, dateContext, isFirstUpload);
     dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
 
-    if (success) {
-      uploadQueue.current.shift();
-    } else {
+    if (!success) {
       logger.warn('File processing failed, clearing remainder of upload queue and resetting state.');
       uploadQueue.current = [];
     }
@@ -269,7 +286,9 @@ export const useBatteryData = () => {
       return;
     }
     dispatch({ type: 'START_LOADING', payload: { totalFiles: files.length } });
-    uploadQueue.current.push(...files.map(file => ({ file, dateContext })));
+    const newFiles = files.map(file => ({ file, dateContext }));
+    uploadQueue.current.push(...newFiles);
+    logger.info(`Adding ${files.length} files to the upload queue.`);
     
     if (!isProcessingQueue.current) {
         processQueue();
@@ -317,10 +336,14 @@ export const useBatteryData = () => {
     }
 
     if (!latestDataPoint || !apiKey) {
+      logger.info("AI Insights: Skipping, no latest data point or API key.");
       return;
     }
     
+    logger.info("AI Insights: latestDataPoint has changed. Scheduling AI tasks.", latestDataPoint);
+    
     const runAiTasks = async () => {
+      logger.info("AI Insights: Running scheduled tasks...");
       try {
         const commonPayload = {
           apiKey,
@@ -334,6 +357,7 @@ export const useBatteryData = () => {
           cycleCount: latestDataPoint.cycleCount,
         };
         
+        logger.info("AI Insights: Requesting health summary...");
         const healthSummaryPromise = summarizeBatteryHealth(commonPayload);
 
         const socChanged = previousDataPoint ? Math.abs(latestDataPoint.soc - previousDataPoint.soc) > 2 : true;
@@ -341,24 +365,30 @@ export const useBatteryData = () => {
         
         let alertsPromise;
         if (socChanged || cellDiffChanged) {
+          logger.info("AI Insights: Data has changed significantly, requesting new alerts.", { socChanged, cellDiffChanged });
           alertsPromise = displayAlertsForDataDeviations(commonPayload);
         } else {
+          logger.info("AI Insights: Data has not changed significantly, skipping new alerts.");
           alertsPromise = Promise.resolve(undefined);
         }
 
         const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
         
         if (healthResult?.summary && healthResult.summary !== state.healthSummary) {
+            logger.info("AI Insights: New health summary received.");
             dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
         }
         
         if (alertsResult?.alerts && JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
+            logger.info("AI Insights: New alerts received.");
             dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
             if (alertsResult.alerts.length > 1) {
+                logger.info("AI Insights: Multiple alerts exist, generating summary.");
                 generateAlertSummary({alerts: alertsResult.alerts, apiKey });
             }
         }
         
+        logger.info("AI Insights: Updating previousDataPoint.");
         setPreviousDataPoint(latestDataPoint);
         
       } catch (error: any) {
@@ -374,7 +404,7 @@ export const useBatteryData = () => {
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestDataPoint, apiKey, state.healthSummary, state.alerts, previousDataPoint]);
+  }, [latestDataPoint, apiKey]);
 
 
   return {

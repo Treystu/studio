@@ -1,3 +1,2 @@
 [functions]
-  included_files = ["./.env.local"]
-  max_body_size = 52428800
+  max_body_size = 6291456

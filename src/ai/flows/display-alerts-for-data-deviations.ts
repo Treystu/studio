@@ -13,6 +13,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
+import {logger} from '@/lib/logger';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -73,14 +74,25 @@ const displayAlertsFlow = ai.defineFlow(
     outputSchema: DisplayAlertsOutputSchema,
   },
   async input => {
+    logger.info('displayAlertsFlow invoked with input:', input.batteryId);
     const {apiKey, ...promptData} = input;
+    if (!apiKey) {
+      logger.error('API key is missing in displayAlertsFlow');
+      throw new Error('API key is required.');
+    }
     const model = googleAI({apiKey});
 
-    const {output} = await ai.generate({
-      prompt: displayAlertsPrompt,
-      model,
-      input: promptData,
-    });
-    return output!;
+    try {
+        const {output} = await ai.generate({
+            prompt: displayAlertsPrompt,
+            model,
+            input: promptData,
+        });
+        logger.info('displayAlertsFlow successful for:', input.batteryId);
+        return output!;
+    } catch (e) {
+        logger.error('Error in displayAlertsFlow:', e);
+        throw e;
+    }
   }
 );

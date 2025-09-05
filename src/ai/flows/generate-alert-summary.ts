@@ -13,6 +13,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
+import { logger } from '@/lib/logger';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
@@ -50,14 +51,6 @@ const generateAlertSummaryPrompt = ai.definePrompt({
         category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
         threshold: 'BLOCK_ONLY_HIGH',
       },
-      {
-        category: 'HARM_CATEGORY_HARASSMENT',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-      },
-      {
-        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-        threshold: 'BLOCK_LOW_AND_ABOVE',
-      },
     ],
   },
 });
@@ -69,14 +62,25 @@ const generateAlertSummaryFlow = ai.defineFlow(
     outputSchema: GenerateAlertSummaryOutputSchema,
   },
   async input => {
+    logger.info('generateAlertSummaryFlow invoked.');
     const { apiKey, ...promptData } = input;
+    if (!apiKey) {
+      logger.error('API key is missing in generateAlertSummaryFlow');
+      throw new Error('API key is required.');
+    }
     const model = googleAI({ apiKey });
     
-    const {output} = await ai.generate({
-        prompt: generateAlertSummaryPrompt,
-        model,
-        input: promptData,
-    });
-    return output!;
+    try {
+        const {output} = await ai.generate({
+            prompt: generateAlertSummaryPrompt,
+            model,
+            input: promptData,
+        });
+        logger.info('generateAlertSummaryFlow successful.');
+        return output!;
+    } catch (e) {
+        logger.error('Error in generateAlertSummaryFlow:', e);
+        throw e;
+    }
   }
 );

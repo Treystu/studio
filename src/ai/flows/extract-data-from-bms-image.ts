@@ -11,6 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
+import { logger } from '@/lib/logger';
 
 const ExtractDataFromBMSImageInputSchema = z.object({
   photoDataUri: z
@@ -79,18 +80,6 @@ const prompt = ai.definePrompt({
         category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
         threshold: 'BLOCK_ONLY_HIGH',
       },
-      {
-        category: 'HARM_CATEGORY_HARASSMENT',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-      },
-      {
-        category: 'HARM_CATEGORY_HATE_SPEECH',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-      },
-      {
-        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-        threshold: 'BLOCK_LOW_AND_ABOVE',
-      },
     ],
   },
 });
@@ -102,14 +91,25 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
     outputSchema: ExtractDataFromBMSImageOutputSchema,
   },
   async input => {
+    logger.info('extractDataFromBMSImageFlow invoked.');
     const { apiKey, ...promptData } = input;
+    if (!apiKey) {
+      logger.error('API key is missing in extractDataFromBMSImageFlow');
+      throw new Error('API key is required.');
+    }
     const model = googleAI({ apiKey });
 
-    const { output } = await ai.generate({
-      prompt,
-      model,
-      input: promptData,
-    });
-    return output!;
+    try {
+      const { output } = await ai.generate({
+        prompt,
+        model,
+        input: promptData,
+      });
+      logger.info('extractDataFromBMSImageFlow successful.');
+      return output!;
+    } catch (e) {
+      logger.error('Error in extractDataFromBMSImageFlow:', e);
+      throw e;
+    }
   }
 );

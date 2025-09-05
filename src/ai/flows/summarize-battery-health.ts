@@ -13,6 +13,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
+import { logger } from '@/lib/logger';
 
 
 const SummarizeBatteryHealthInputSchema = z.object({
@@ -76,14 +77,25 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
     outputSchema: SummarizeBatteryHealthOutputSchema,
   },
   async input => {
+    logger.info('summarizeBatteryHealthFlow invoked for battery:', input.batteryId);
     const { apiKey, ...promptData } = input;
+    if (!apiKey) {
+      logger.error('API key is missing in summarizeBatteryHealthFlow');
+      throw new Error('API key is required.');
+    }
     const model = googleAI({ apiKey });
 
-    const {output} = await ai.generate({
-        prompt: summarizeBatteryHealthPrompt,
-        model,
-        input: promptData,
-    });
-    return output!;
+    try {
+        const {output} = await ai.generate({
+            prompt: summarizeBatteryHealthPrompt,
+            model,
+            input: promptData,
+        });
+        logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);
+        return output!;
+    } catch (e) {
+        logger.error('Error in summarizeBatteryHealthFlow:', e);
+        throw e;
+    }
   }
 );

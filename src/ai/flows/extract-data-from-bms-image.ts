@@ -57,18 +57,14 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
     logger.info('extractDataFromBMSImageFlow invoked.');
     const { apiKey, photoDataUri } = input;
     if (!apiKey) {
-      logger.error('FATAL: API key is missing in extractDataFromBMSImageFlow');
+      logger.error('API key is missing in extractDataFromBMSImageFlow');
       throw new Error('API key is required.');
     }
-    
-    logger.info('HYPER-VERBOSE: API key received in flow:', apiKey.substring(0, 5) + '...');
     
     try {
         const localAi = genkit({
           plugins: [googleAI({apiKey})],
         });
-
-        logger.info('HYPER-VERBOSE: Local AI instance created. Calling generate...');
 
         const { output } = await localAi.generate({
             model: 'googleai/gemini-1.5-flash-latest',
@@ -101,14 +97,13 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
         });
         
         if (!output) {
-          logger.error('FATAL: No output from AI');
           throw new Error('No output from AI');
         }
 
         logger.info('extractDataFromBMSImageFlow successful.');
         return output;
     } catch (e: any) {
-        logger.error('FATAL: Error in extractDataFromBMSImageFlow generate call:', JSON.stringify(e, null, 2));
+        logger.error('Error in extractDataFromBMSImageFlow generate call:', e);
         throw e;
     }
   }

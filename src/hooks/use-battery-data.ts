@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useReducer, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -6,7 +5,6 @@ import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, Raw
 import { extractDataFromBMSImage } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
 import { summarizeBatteryHealth } from '@/ai/flows/summarize-battery-health';
-import { generateAlertSummary } from '@/ai/flows/generate-alert-summary';
 import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
 
@@ -37,7 +35,6 @@ type Action =
   | { type: 'SET_HEALTH_SUMMARY'; payload: string }
   | { type: 'CLEAR_BATTERY_DATA'; payload: string }
   | { type: 'INCREMENT_PROCESSED_COUNT' }
-  | { type: 'SET_UPLOAD_PROGRESS'; payload: { progress: number, processed: number } }
   | { type: 'SET_API_KEY'; payload: string | null };
 
 const initialState: State = {
@@ -54,7 +51,7 @@ const initialState: State = {
 };
 
 const reducer = (state: State, action: Action): State => {
-  logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload, null, 2) : '');
+  logger.log(`ACTION: ${action.type}`, action.payload ? JSON.stringify(action.payload, null, 2).substring(0, 200) + '...' : '');
   switch (action.type) {
     case 'START_LOADING':
       logger.log(`Upload started: ${action.payload.totalFiles} files`);
@@ -73,10 +70,10 @@ const reducer = (state: State, action: Action): State => {
       logger.log('Adding data for battery:', batteryId);
 
       const timeParts = data.timestamp.split(':').map(Number);
-
+      
       const newTimestamp = new Date(dateContext);
-      if (newTimestamp.getHours() === 0 && newTimestamp.getMinutes() === 0 && newTimestamp.getSeconds() === 0) {
-        newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
+      if (timeParts.length >= 2) {
+          newTimestamp.setHours(timeParts[0], timeParts[1], timeParts[2] || 0, 0);
       }
       logger.log(`Final timestamp for data point determined as: ${newTimestamp.toISOString()}`);
 
@@ -148,8 +145,6 @@ const reducer = (state: State, action: Action): State => {
       const newProcessedCount = state.processedFileCount + 1;
       logger.log(`Processed file ${newProcessedCount}/${state.totalFileCount}`);
       return { ...state, processedFileCount: newProcessedCount, uploadProgress: (newProcessedCount / state.totalFileCount) * 100 };
-    case 'SET_UPLOAD_PROGRESS':
-      return { ...state, uploadProgress: action.payload.progress, processedFileCount: action.payload.processed };
     case 'SET_API_KEY':
         return {...state, apiKey: action.payload};
     default:
@@ -181,12 +176,10 @@ const parseDateFromFilename = (filename: string): Date | null => {
 export const useBatteryData = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { toast } = useToast();
-  const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingQueue = useRef(false);
   const [previousDataPoint, setPreviousDataPoint] = useState<BatteryDataPointWithDate | null>(null);
   const uploadQueue = useRef<{ file: File; dateContext: Date }[]>([]);
 
-  // Effect to load API key from localStorage on mount
   useEffect(() => {
     logger.log("useBatteryData hook mounted. Checking for API Key.");
     const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
@@ -197,6 +190,59 @@ export const useBatteryData = () => {
        logger.warn("API Key not found in localStorage.");
     }
   }, []);
+
+  const runAiTasks = useCallback(async () => {
+    const latestDataPoint = state.currentBatteryData[state.currentBatteryData.length - 1];
+    if (!latestDataPoint || !state.apiKey) {
+      logger.log("AI Insights: Skipping, no latest data point or API key.");
+      return;
+    }
+  
+    logger.log("AI Insights: Running scheduled tasks after queue completion...");
+    try {
+      const commonPayload = {
+        apiKey: state.apiKey as string,
+        batteryId: latestDataPoint.batteryId,
+        soc: latestDataPoint.soc,
+        voltage: latestDataPoint.voltage,
+        current: latestDataPoint.current,
+        maxCellVoltage: latestDataPoint.maxCellVoltage ?? null,
+        minCellVoltage: latestDataPoint.minCellVoltage ?? null,
+        averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
+        cycleCount: latestDataPoint.cycleCount,
+      };
+      
+      logger.log("AI Insights: Requesting health summary...");
+      const healthSummaryPromise = summarizeBatteryHealth(commonPayload);
+
+      let alertsPromise: Promise<any> | null = null;
+      const socChanged = !previousDataPoint || latestDataPoint.soc !== previousDataPoint.soc;
+      const cellDiffChanged = !previousDataPoint || latestDataPoint.cellVoltageDifference !== previousDataPoint.cellVoltageDifference;
+      if (socChanged || cellDiffChanged) {
+        logger.log("AI Insights: Data has changed significantly, requesting new alerts.", { socChanged, cellDiffChanged });
+        alertsPromise = displayAlertsForDataDeviations(commonPayload);
+      }
+      
+      const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
+      
+      if (healthResult?.summary) {
+          logger.log("AI Insights: New health summary received.");
+          dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
+      }
+      
+      if (alertsResult?.alerts) {
+          logger.log("AI Insights: New alerts received.");
+          dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
+      }
+
+      logger.log("AI Insights: Updating previousDataPoint.");
+      setPreviousDataPoint(latestDataPoint);
+      
+    } catch (error: any) {
+      logger.error("AI Insights: Error running tasks:", error);
+    }
+  }, [state.apiKey, state.currentBatteryData, previousDataPoint]);
+
 
   const processFile = async (file: File, dateContext: Date, isFirstUpload: boolean): Promise<boolean> => {
     logger.log(`Starting to process file: ${file.name}`);
@@ -223,14 +269,13 @@ export const useBatteryData = () => {
         
         logger.log(`File converted to data URI. Calling 'extractDataFromBMSImage' AI flow...`);
         const payload = { photoDataUri: dataUri, apiKey: state.apiKey };
-        
         const extractedData = await extractDataFromBMSImage(payload);
         
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         logger.log(`Successfully processed file: ${file.name}`);
         return true;
     } catch (error: any) {
-        logger.error(`Error processing file: ${file.name}`, error);
+        logger.error(`Error processing file: ${file.name}`, JSON.stringify(error, null, 2));
         toast({
             variant: 'destructive',
             title: `Error processing ${file.name}`,
@@ -248,13 +293,12 @@ export const useBatteryData = () => {
     }
     if (uploadQueue.current.length === 0) {
       logger.log("Process Queue: Queue is empty.");
-      if (state.totalFileCount > 0 && state.processedFileCount === state.totalFileCount) {
+      if (state.totalFileCount > 0 && state.processedFileCount > 0) {
+        await runAiTasks();
         setTimeout(() => {
             dispatch({ type: 'RESET_UPLOAD_STATE' });
-            if (state.processedFileCount > 0) {
-              toast({ title: 'Upload Complete', description: `${state.processedFileCount} file(s) processed.` });
-            }
-        }, 1000);
+            toast({ title: 'Upload Complete', description: `${state.processedFileCount} file(s) processed.` });
+        }, 1000); // Give a moment for the progress bar to show 100%
       }
       return;
     }
@@ -266,17 +310,16 @@ export const useBatteryData = () => {
 
     const success = await processFile(file, dateContext, isFirstUpload);
     dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
-
+    
     if (!success) {
       logger.warn('File processing failed, clearing remainder of upload queue and resetting state.');
       uploadQueue.current = []; // Clear the queue on failure
-      dispatch({ type: 'RESET_UPLOAD_STATE' }); // Reset loading indicators
+      dispatch({ type: 'RESET_UPLOAD_STATE' });
     }
+    
     isProcessingQueue.current = false;
-    // Use setTimeout to allow the UI to update before the next item is processed.
-    setTimeout(processQueue, 0);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.currentBatteryId, state.apiKey, state.totalFileCount, state.processedFileCount, toast]);
+    processQueue(); // Use setImmediate/setTimeout to avoid deep recursion
+  }, [state.apiKey, state.currentBatteryId, state.totalFileCount, state.processedFileCount, toast, runAiTasks]);
 
   const processUploadedFiles = useCallback((files: File[], dateContext: Date) => {
      if (!state.apiKey) {
@@ -332,82 +375,24 @@ export const useBatteryData = () => {
   const currentBatteryRawData = useMemo(() => state.currentBatteryId ? state.rawBatteries[state.currentBatteryId] || [] : [], [state.currentBatteryId, state.rawBatteries]);
   const latestDataPoint = useMemo(() => currentBatteryData.length > 0 ? currentBatteryData[currentBatteryData.length - 1] : null, [currentBatteryData]);
 
-  // Effect for running AI insights when data changes
   useEffect(() => {
-    if (aiTimeoutRef.current) {
-        clearTimeout(aiTimeoutRef.current);
-    }
-
     if (!latestDataPoint || !state.apiKey) {
       logger.log("AI Insights: Skipping, no latest data point or API key.");
       return;
     }
     
-    logger.log("AI Insights: latestDataPoint has changed. Scheduling AI tasks.");
-    
-    const runAiTasks = async () => {
-      logger.log("AI Insights: Running scheduled tasks...");
-      try {
-        const commonPayload = {
-          apiKey: state.apiKey as string,
-          batteryId: latestDataPoint.batteryId,
-          soc: latestDataPoint.soc,
-          voltage: latestDataPoint.voltage,
-          current: latestDataPoint.current,
-          maxCellVoltage: latestDataPoint.maxCellVoltage ?? null,
-          minCellVoltage: latestDataPoint.minCellVoltage ?? null,
-          averageCellVoltage: latestDataPoint.avgCellVoltage ?? null,
-          cycleCount: latestDataPoint.cycleCount,
-        };
-        
-        logger.log("AI Insights: Requesting health summary...");
-        const healthSummaryPromise = summarizeBatteryHealth(commonPayload);
-
-        const socChanged = previousDataPoint ? Math.abs(latestDataPoint.soc - previousDataPoint.soc) > 2 : true;
-        const cellDiffChanged = previousDataPoint ? Math.abs((latestDataPoint.cellVoltageDifference ?? 0) - (previousDataPoint.cellVoltageDifference ?? 0)) > 0.005 : true;
-        
-        let alertsPromise;
-        if (socChanged || cellDiffChanged) {
-          logger.log("AI Insights: Data has changed significantly, requesting new alerts.", { socChanged, cellDiffChanged });
-          alertsPromise = displayAlertsForDataDeviations(commonPayload);
-        } else {
-          logger.log("AI Insights: Data has not changed significantly, skipping new alerts.");
-          alertsPromise = Promise.resolve(undefined);
-        }
-
-        const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
-        
-        if (healthResult?.summary && healthResult.summary !== state.healthSummary) {
-            logger.log("AI Insights: New health summary received.");
-            dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
-        }
-        
-        if (alertsResult?.alerts && JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
-            logger.log("AI Insights: New alerts received.");
-            dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
-            if (alertsResult.alerts.length > 1) {
-                logger.log("AI Insights: Multiple alerts exist, generating summary.");
-                generateAlertSummary({alerts: alertsResult.alerts, apiKey: state.apiKey as string });
-            }
-        }
-        
-        logger.log("AI Insights: Updating previousDataPoint.");
-        setPreviousDataPoint(latestDataPoint);
-        
-      } catch (error: any) {
-        logger.error("AI Insights: Error running tasks:", error);
-      }
-    };
-    
-    aiTimeoutRef.current = setTimeout(runAiTasks, 1500);
-
-    return () => {
-        if(aiTimeoutRef.current) {
-            clearTimeout(aiTimeoutRef.current);
-        }
+    const shouldRunAi = () => {
+      if (!previousDataPoint) return true; // Always run on first data point
+      if (latestDataPoint.timestamp.getTime() !== previousDataPoint.timestamp.getTime()) return true; // Always run if the point is new
+      return false; // Otherwise, don't re-run for the same data
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestDataPoint, state.apiKey]);
+    
+    if (shouldRunAi()) {
+        logger.log("AI Insights: latestDataPoint has changed. Scheduling AI tasks.");
+        // We defer the AI tasks to be run explicitly by the queue processor
+        // to avoid race conditions during batch uploads.
+    }
+  }, [latestDataPoint, state.apiKey, previousDataPoint]);
 
 
   return {

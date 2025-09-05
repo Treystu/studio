@@ -12,7 +12,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {logger} from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 

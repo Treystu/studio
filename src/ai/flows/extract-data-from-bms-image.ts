@@ -12,6 +12,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
 
 const ExtractDataFromBMSImageInputSchema = z.object({
   photoDataUri: z
@@ -61,9 +63,12 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
     }
     
     try {
-        const { output } = await ai.generate({
+        const localAi = genkit({
+            plugins: [googleAI({ apiKey })],
+        });
+
+        const { output } = await localAi.generate({
             model: 'googleai/gemini-pro-vision',
-            apiKey,
             prompt: [
               { text: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
         

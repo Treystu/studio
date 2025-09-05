@@ -1,3 +1,4 @@
+
 'use server';
 
 import {config} from 'dotenv';
@@ -6,16 +7,6 @@ config();
 import {genkit, type GenkitOptions} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import {defineFlow} from 'genkit';
-
-console.log(
-  'DEV SERVER: Initializing Genkit in debug mode... GEMINI_API_KEY available on server:',
-  !!process.env.GEMINI_API_KEY
-);
-if (!process.env.GEMINI_API_KEY) {
-  console.log(
-    'DEV SERVER: GEMINI_API_KEY environment variable is not set on the server.'
-  );
-}
 
 // In dev, we can initialize with a key for easier local testing.
 // In production, the apiKey will be passed into each flow dynamically.

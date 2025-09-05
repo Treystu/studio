@@ -14,6 +14,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {logger} from '@/lib/logger';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -52,9 +54,12 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
     }
     
     try {
-        const { output } = await ai.generate({
+        const localAi = genkit({
+            plugins: [googleAI({ apiKey })],
+        });
+
+        const { output } = await localAi.generate({
             model: 'googleai/gemini-pro',
-            apiKey,
             prompt: `You are an AI assistant specializing in providing summarized overviews of battery health.
           
               Based on the following battery data, provide a concise summary of the battery's current health status. Include key metrics such as SOC, voltage, and any significant deviations.

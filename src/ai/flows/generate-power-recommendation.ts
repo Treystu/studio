@@ -162,7 +162,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
           
           Analyze the current battery status, the weather forecast for the next 3 days, and the sunrise/sunset times.
           
-          Based on the State of Charge (SOC), current power draw, and upcoming sun exposure, provide a single, clear recommendation.
+          Based on the State of Charge (SOC), current power draw, and upcoming sun exposure (using the sun_hours field), provide a single, clear recommendation.
           - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").
           - If the SOC is low and cloudy weather is coming, recommend conserving power or running a generator.
           - If the SOC is moderate, give a balanced recommendation.

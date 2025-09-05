@@ -1,0 +1,17 @@
+# Netlify configuration file
+
+[build]
+  # This command builds your Next.js application
+  command = "npm run build"
+  # This directory contains the output of the build
+  publish = ".next"
+
+[functions]
+  # This specifies the directory where your Genkit serverless functions are located
+  directory = ".firebase/functions"
+  
+# This is a redirect rule to make sure all Genkit flow requests are correctly routed
+[[redirects]]
+  from = "/api/genkit/*"
+  to = "/.netlify/functions/server/api/genkit/:splat"
+  status = 200

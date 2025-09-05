@@ -70,7 +70,8 @@ const prompt = ai.definePrompt({
   Return the extracted data in JSON format.
 
   Screenshot: {{media url=photoDataUri}}
-  `,config: {
+  `,
+  config: {
     safetySettings: [
       {
         category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
@@ -78,6 +79,10 @@ const prompt = ai.definePrompt({
       },
       {
         category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+      },
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
         threshold: 'BLOCK_MEDIUM_AND_ABOVE',
       },
       {

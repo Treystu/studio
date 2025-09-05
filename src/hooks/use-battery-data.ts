@@ -199,10 +199,14 @@ export const useBatteryData = () => {
 
       } catch (error) {
         console.error('Error processing file:', file.name, error);
+        let description = 'Could not extract data from the image.';
+        if (error instanceof Error && /429|quota/.test(error.message)) {
+            description = 'Daily AI processing limit reached. Please try again later.';
+        }
         toast({
           variant: 'destructive',
           title: `Error processing ${file.name}`,
-          description: 'Could not extract data from the image.',
+          description,
         });
       } finally {
           const finalProgress = ((index + 1) / totalFiles) * 100;

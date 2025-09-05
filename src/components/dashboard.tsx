@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useBatteryData } from "@/hooks/use-battery-data";
@@ -10,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Battery, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isSameDay } from "date-fns";
 import PowerRecommendation from "@/components/power-recommendation";
 
 export default function Dashboard() {
@@ -50,7 +51,7 @@ export default function Dashboard() {
   
   const isInitialLoading = isLoading && !hasData;
 
-  const isDataFresh = latestDataPoint ? new Date().getTime() - new Date(latestDataPoint.timestamp).getTime() < 4 * 60 * 60 * 1000 : false;
+  const isDataFresh = latestDataPoint && selectedDate ? isSameDay(new Date(latestDataPoint.timestamp), selectedDate) : false;
   const timeAgo = latestDataPoint ? formatDistanceToNow(new Date(latestDataPoint.timestamp), { addSuffix: true }) : '';
 
   return (
@@ -110,15 +111,16 @@ export default function Dashboard() {
                         <div>
                             <p className="font-semibold text-amber-700 dark:text-amber-300">You are viewing historical data</p>
                             <p className="text-sm text-amber-600 dark:text-amber-400">
-                                The metrics shown below are from your selected timeframe. Live data is not displayed.
+                                The metrics shown below are from the last known reading ({timeAgo}). Live data is not displayed.
                             </p>
                         </div>
                     </CardContent>
                 </Card>
             )}
-            <AlertsSection alerts={alerts} />
+            
             {isDataFresh && latestDataPoint && (
               <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                <AlertsSection alerts={alerts} />
                 <PowerRecommendation latestDataPoint={latestDataPoint} />
                 <OverviewSection data={latestDataPoint} healthSummary={healthSummary}/>
                 <MetricsSection data={latestDataPoint} />

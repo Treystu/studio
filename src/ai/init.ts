@@ -18,9 +18,6 @@ export function dynamicallyInitializeGoogleAI() {
 
   logger.info('Dynamically initializing Google AI plugin...');
 
-  // Temporarily log all available environment variable keys for debugging
-  logger.info(`Available environment variable keys: ${Object.keys(process.env).join(', ')}`);
-  
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     logger.error('GEMINI_API_KEY environment variable not found.');

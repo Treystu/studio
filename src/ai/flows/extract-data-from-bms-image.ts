@@ -94,7 +94,7 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
     logger.info('extractDataFromBMSImageFlow invoked.');
     const { apiKey, ...promptData } = input;
     if (!apiKey) {
-      logger.error('API key is missing in extractDataFromBMSImageFlow');
+      logger.error('CRITICAL: API key is missing in extractDataFromBMSImageFlow');
       throw new Error('API key is required.');
     }
     const model = googleAI({ apiKey });

@@ -80,7 +80,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
     logger.info('summarizeBatteryHealthFlow invoked for battery:', input.batteryId);
     const { apiKey, ...promptData } = input;
     if (!apiKey) {
-      logger.error('API key is missing in summarizeBatteryHealthFlow');
+      logger.error('CRITICAL: API key is missing in summarizeBatteryHealthFlow');
       throw new Error('API key is required.');
     }
     const model = googleAI({ apiKey });

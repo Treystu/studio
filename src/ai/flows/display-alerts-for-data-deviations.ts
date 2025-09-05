@@ -74,10 +74,10 @@ const displayAlertsFlow = ai.defineFlow(
     outputSchema: DisplayAlertsOutputSchema,
   },
   async input => {
-    logger.info('displayAlertsFlow invoked with input:', input.batteryId);
+    logger.info('displayAlertsFlow invoked with input for battery:', input.batteryId);
     const {apiKey, ...promptData} = input;
     if (!apiKey) {
-      logger.error('API key is missing in displayAlertsFlow');
+      logger.error('CRITICAL: API key is missing in displayAlertsFlow');
       throw new Error('API key is required.');
     }
     const model = googleAI({apiKey});

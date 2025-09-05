@@ -62,7 +62,9 @@ class Logger {
                 if (typeof arg === 'string') return arg;
                 // Avoid "[object Object]" and circular references
                 try {
-                    return JSON.stringify(arg);
+                    return JSON.stringify(arg, (key, value) => 
+                        typeof value === 'bigint' ? value.toString() : value
+                    , 2);
                 } catch {
                     return 'UnserializableObject';
                 }
@@ -76,7 +78,7 @@ class Logger {
             });
 
             // Keep the log array from growing indefinitely
-            if (this.logs.length > 1000) { // Increased log limit
+            if (this.logs.length > 1000) { 
                 this.logs.shift();
             }
         } catch (e) {
@@ -93,7 +95,7 @@ class Logger {
     }
 
     log(...args: any[]) { this.addLog('log', args); this.originalConsole.log.apply(console, args); }
-    info(...args: any[]) { this.addLog('info', args); this.originalConsole.info.apply(console, args); }
+    info(...args: any[]) { if (this.isVerbose) { this.addLog('info', args); this.originalConsole.info.apply(console, args); } }
     warn(...args: any[]) { this.addLog('warn', args); this.originalConsole.warn.apply(console, args); }
     error(...args: any[]) { this.addLog('error', args); this.originalConsole.error.apply(console, args); }
 }

@@ -10,7 +10,7 @@ export default function VerboseLoader() {
     // Set a flag in localStorage to enable verbose logging
     try {
       localStorage.setItem('verbose_logging', 'true');
-      console.log('Verbose logging enabled.');
+      console.log('Verbose logging enabled. Redirecting...');
     } catch (error) {
       console.error('Could not set verbose logging flag:', error);
     }
@@ -22,7 +22,7 @@ export default function VerboseLoader() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="text-center">
-        <p className="text-lg text-foreground">Enabling verbose logging...</p>
+        <p className="text-lg text-foreground">Enabling verbose logging and redirecting...</p>
       </div>
     </div>
   );

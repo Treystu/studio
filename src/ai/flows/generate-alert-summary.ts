@@ -65,7 +65,7 @@ const generateAlertSummaryFlow = ai.defineFlow(
     logger.info('generateAlertSummaryFlow invoked.');
     const { apiKey, ...promptData } = input;
     if (!apiKey) {
-      logger.error('API key is missing in generateAlertSummaryFlow');
+      logger.error('CRITICAL: API key is missing in generateAlertSummaryFlow');
       throw new Error('API key is required.');
     }
     const model = googleAI({ apiKey });

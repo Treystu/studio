@@ -223,10 +223,10 @@ export const useBatteryData = () => {
             reader.readAsDataURL(file);
         });
         
-        logger.info(`File converted to data URI (length: ${dataUri.length}). Calling AI flow...`);
+        logger.info(`File converted to data URI. Calling 'extractDataFromBMSImage' AI flow...`, {filename: file.name});
         const payload = { photoDataUri: dataUri, apiKey };
         const extractedData = await extractDataFromBMSImage(payload);
-        logger.info("AI flow successful. Extracted data:", extractedData);
+        logger.info("AI flow 'extractDataFromBMSImage' successful. Extracted data:", extractedData);
 
         dispatch({ type: 'ADD_DATA', payload: { data: extractedData, dateContext: fileDateContext, isFirstUpload } });
         return true;
@@ -244,7 +244,6 @@ export const useBatteryData = () => {
             description: `Could not extract data. ${errorMessage}`,
         });
         
-        // Don't pause the queue for single-file errors unless it's a quota issue.
         if (errorMessage.includes('429') || errorMessage.includes('quota')) {
              toast({
                 variant: 'destructive',
@@ -254,7 +253,7 @@ export const useBatteryData = () => {
             return false; // Failure, needs retry
         }
 
-        return true; // Success, continue queue
+        return true; // Success (to continue queue), but file failed.
     }
   }
 
@@ -287,6 +286,7 @@ export const useBatteryData = () => {
       uploadQueue.current.shift(); // Remove from queue
       dispatch({ type: 'INCREMENT_PROCESSED_COUNT' });
       isProcessingQueue.current = false;
+      // Immediately process the next item
       processQueue(); 
     } else {
       // Failure, likely rate-limiting. Pause and retry.
@@ -387,28 +387,40 @@ export const useBatteryData = () => {
         const socChanged = previousDataPoint ? Math.abs(latestDataPoint.soc - previousDataPoint.soc) > 2 : true;
         const cellDiffChanged = previousDataPoint ? Math.abs((latestDataPoint.cellVoltageDifference ?? 0) - (previousDataPoint.cellVoltageDifference ?? 0)) > 0.005 : true;
         
-        let alertsPromise = Promise.resolve(undefined);
+        let alertsPromise;
         if (socChanged || cellDiffChanged) {
           logger.info('AI Insights: Significant data change detected, checking for alerts.');
           alertsPromise = displayAlertsForDataDeviations(commonPayload);
         } else {
           logger.info('AI Insights: No significant data change, skipping alert check.');
+          alertsPromise = Promise.resolve(undefined);
         }
 
         const [healthResult, alertsResult] = await Promise.all([healthSummaryPromise, alertsPromise]);
-
-        if (healthResult?.summary && healthResult.summary !== state.healthSummary) {
-          logger.info('AI Insights: New health summary received.');
-          dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
-        }
-        if (alertsResult?.alerts && JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
-            logger.info('AI Insights: New alerts received.', { alerts: alertsResult.alerts });
-            dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
-            if (alertsResult.alerts.length > 1) {
-                logger.info("AI Insights: Generating alert summary.");
-                generateAlertSummary({alerts: alertsResult.alerts, apiKey });
+        
+        if (healthResult?.summary) {
+            if(healthResult.summary !== state.healthSummary) {
+                logger.info('AI Insights: New health summary received.');
+                dispatch({ type: 'SET_HEALTH_SUMMARY', payload: healthResult.summary });
+            } else {
+                 logger.info('AI Insights: Health summary is unchanged.');
             }
         }
+        
+        if (alertsResult?.alerts) {
+            if (JSON.stringify(alertsResult.alerts) !== JSON.stringify(state.alerts)) {
+                logger.info('AI Insights: New alerts received.', { alerts: alertsResult.alerts });
+                dispatch({ type: 'SET_ALERTS', payload: alertsResult.alerts });
+                if (alertsResult.alerts.length > 1) {
+                    logger.info("AI Insights: Generating alert summary.");
+                    // This is a fire-and-forget, it updates its own state
+                    generateAlertSummary({alerts: alertsResult.alerts, apiKey });
+                }
+            } else {
+                 logger.info('AI Insights: Alerts are unchanged.');
+            }
+        }
+        
         setPreviousDataPoint(latestDataPoint);
         
       } catch (error) {

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { version } from '../../package.json';
+import { version } from '../../../package.json';
 import { useBatteryData } from "@/hooks/use-battery-data";
 import { logger } from "@/lib/logger";
 
@@ -61,7 +61,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
         }
       },
       logs: logger.getLogs(),
-      appState: batteryDataState,
+      appState: { ...batteryDataState, processUploadedFiles: 'function', setCurrentBatteryId: 'function', clearCurrentBatteryData: 'function' },
     };
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(diagnostics, null, 2));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useReducer, useCallback, useEffect, useMemo } from 'react';
-import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate } from '@/lib/types';
+import type { BatteryCollection, BatteryDataPoint, BatteryDataPointWithDate, RawBatteryCollection, RawBatteryDataPoint } from '@/lib/types';
 import { extractDataFromBMSImage } from '@/ai/flows/extract-data-from-bms-image';
 import { displayAlertsForDataDeviations } from '@/ai/flows/display-alerts-for-data-deviations';
 import { useToast } from './use-toast';
@@ -9,6 +9,7 @@ import { useToast } from './use-toast';
 // == STATE & REDUCER == //
 type State = {
   batteries: BatteryCollection;
+  rawBatteries: RawBatteryCollection;
   currentBatteryId: string | null;
   isLoading: boolean;
   alerts: string[];
@@ -17,7 +18,7 @@ type State = {
 type Action =
   | { type: 'START_LOADING' }
   | { type: 'STOP_LOADING' }
-  | { type: 'SET_BATTERIES'; payload: BatteryCollection }
+  | { type: 'SET_BATTERIES'; payload: { batteries: BatteryCollection, rawBatteries: RawBatteryCollection } }
   | { type: 'SET_CURRENT_BATTERY'; payload: string }
   | { type: 'ADD_DATA'; payload: { data: BatteryDataPoint; dateContext: Date } }
   | { type: 'SET_ALERTS'; payload: string[] }
@@ -25,6 +26,7 @@ type Action =
 
 const initialState: State = {
   batteries: {},
+  rawBatteries: {},
   currentBatteryId: null,
   isLoading: false,
   alerts: [],
@@ -37,7 +39,7 @@ const reducer = (state: State, action: Action): State => {
     case 'STOP_LOADING':
       return { ...state, isLoading: false };
     case 'SET_BATTERIES':
-      return { ...state, batteries: action.payload };
+      return { ...state, batteries: action.payload.batteries, rawBatteries: action.payload.rawBatteries };
     case 'SET_CURRENT_BATTERY':
       return { ...state, currentBatteryId: action.payload, alerts: [] };
     case 'ADD_DATA': {
@@ -48,45 +50,50 @@ const reducer = (state: State, action: Action): State => {
       const newTimestamp = new Date(dateContext);
       newTimestamp.setHours(timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0, 0);
 
-      const newDataPoint: BatteryDataPointWithDate = { ...data, timestamp: newTimestamp, uploadCount: 1 };
+      const newRawDataPoint: RawBatteryDataPoint = { ...data, timestamp: newTimestamp };
+      const newAveragedDataPoint: BatteryDataPointWithDate = { ...data, timestamp: newTimestamp, uploadCount: 1 };
 
-      const existingData = state.batteries[batteryId] || [];
-      const updatedBatteries = { ...state.batteries };
+      const updatedRawBatteries = { ...state.rawBatteries };
+      const existingRawData = updatedRawBatteries[batteryId] || [];
+      updatedRawBatteries[batteryId] = [...existingRawData, newRawDataPoint].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      const updatedAveragedBatteries = { ...state.batteries };
+      const existingAveragedData = updatedAveragedBatteries[batteryId] || [];
       
       const hourKey = new Date(newTimestamp.getFullYear(), newTimestamp.getMonth(), newTimestamp.getDate(), newTimestamp.getHours()).getTime();
       
-      const existingIndex = existingData.findIndex(p => {
+      const existingIndex = existingAveragedData.findIndex(p => {
         const pDate = p.timestamp;
         return new Date(pDate.getFullYear(), pDate.getMonth(), pDate.getDate(), pDate.getHours()).getTime() === hourKey;
       });
 
       if (existingIndex !== -1) {
-        const existingPoint = existingData[existingIndex];
+        const existingPoint = existingAveragedData[existingIndex];
         const averagedPoint = { ...existingPoint };
 
         const existingCount = existingPoint.uploadCount || 1;
         const newTotalCount = existingCount + 1;
 
-        (Object.keys(newDataPoint) as Array<keyof BatteryDataPointWithDate>).forEach(key => {
-          if (typeof existingPoint[key] === 'number' && typeof newDataPoint[key] === 'number' && key !== 'uploadCount') {
+        (Object.keys(newAveragedDataPoint) as Array<keyof BatteryDataPointWithDate>).forEach(key => {
+          if (typeof existingPoint[key] === 'number' && typeof newAveragedDataPoint[key] === 'number' && key !== 'uploadCount') {
             const existingValue = existingPoint[key] as number;
-            const newValue = newDataPoint[key] as number;
+            const newValue = newAveragedDataPoint[key] as number;
             (averagedPoint[key] as number) = (existingValue * existingCount + newValue) / newTotalCount;
-          } else if (newDataPoint[key] !== null && newDataPoint[key] !== undefined) {
+          } else if (newAveragedDataPoint[key] !== null && newAveragedDataPoint[key] !== undefined) {
              // For non-numeric or new nullable fields, prefer the new data if it's not null.
              // @ts-ignore
-            averagedPoint[key] = newDataPoint[key];
+            averagedPoint[key] = newAveragedDataPoint[key];
           }
         });
         
         averagedPoint.uploadCount = newTotalCount;
-        existingData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
-        updatedBatteries[batteryId] = [...existingData];
+        existingAveragedData[existingIndex] = { ...averagedPoint, timestamp: existingPoint.timestamp }; 
+        updatedAveragedBatteries[batteryId] = [...existingAveragedData];
       } else {
-        updatedBatteries[batteryId] = [...existingData, newDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        updatedAveragedBatteries[batteryId] = [...existingAveragedData, newAveragedDataPoint].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       }
       
-      return { ...state, batteries: updatedBatteries };
+      return { ...state, batteries: updatedAveragedBatteries, rawBatteries: updatedRawBatteries };
     }
     case 'SET_ALERTS':
       return { ...state, alerts: action.payload };
@@ -94,8 +101,10 @@ const reducer = (state: State, action: Action): State => {
       if (!action.payload) return state;
       const newBatteries = { ...state.batteries };
       delete newBatteries[action.payload];
+      const newRawBatteries = { ...state.rawBatteries };
+      delete newRawBatteries[action.payload];
       const newCurrentBatteryId = Object.keys(newBatteries)[0] || null;
-      return { ...state, batteries: newBatteries, currentBatteryId: newCurrentBatteryId, alerts: [] };
+      return { ...state, batteries: newBatteries, rawBatteries: newRawBatteries, currentBatteryId: newCurrentBatteryId, alerts: [] };
     }
     default:
       return state;
@@ -155,14 +164,31 @@ export const useBatteryData = () => {
   const clearCurrentBatteryData = useCallback((backup: boolean) => {
     if (!state.currentBatteryId) return;
     if (backup) {
-      console.log('Backing up data for', state.currentBatteryId, state.batteries[state.currentBatteryId]);
-      toast({ title: 'Data Backup', description: `Data for ${state.currentBatteryId} has been backed up.` });
+      // In a real app, you'd send this to a server or download it.
+      // For this example, we'll just log it to the console.
+      const dataToBackup = {
+          averagedData: state.batteries[state.currentBatteryId],
+          rawData: state.rawBatteries[state.currentBatteryId],
+      }
+      console.log('Backing up data for', state.currentBatteryId, dataToBackup);
+      const dataBlob = new Blob([JSON.stringify(dataToBackup, null, 2)], {type : 'application/json'});
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${state.currentBatteryId}_backup_${new Date().toISOString()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Data Backup', description: `Data for ${state.currentBatteryId} has been downloaded.` });
     }
     dispatch({ type: 'CLEAR_BATTERY_DATA', payload: state.currentBatteryId });
     toast({ title: 'Data Cleared', description: `All data for ${state.currentBatteryId} has been removed.` });
-  }, [state.currentBatteryId, state.batteries, toast]);
+  }, [state.currentBatteryId, state.batteries, state.rawBatteries, toast]);
   
   const currentBatteryData = useMemo(() => state.currentBatteryId ? state.batteries[state.currentBatteryId] || [] : [], [state.currentBatteryId, state.batteries]);
+  const currentBatteryRawData = useMemo(() => state.currentBatteryId ? state.rawBatteries[state.currentBatteryId] || [] : [], [state.currentBatteryId, state.rawBatteries]);
   const latestDataPoint = useMemo(() => currentBatteryData.length > 0 ? currentBatteryData[currentBatteryData.length - 1] : null, [currentBatteryData]);
 
   useEffect(() => {
@@ -205,6 +231,7 @@ export const useBatteryData = () => {
   return {
     ...state,
     currentBatteryData,
+    currentBatteryRawData,
     latestDataPoint,
     processUploadedFiles,
     setCurrentBatteryId,

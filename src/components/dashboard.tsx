@@ -24,6 +24,7 @@ export default function Dashboard() {
     setCurrentBatteryId,
     latestDataPoint,
     currentBatteryData,
+    currentBatteryRawData,
     processUploadedFiles,
     clearCurrentBatteryData,
     isLoading,
@@ -90,7 +91,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 gap-8 animate-fade-in">
                 <OverviewSection data={latestDataPoint} />
                 <MetricsSection data={latestDataPoint} />
-                <TrendsSection data={currentBatteryData} />
+                <TrendsSection data={currentBatteryData} rawData={currentBatteryRawData}/>
               </div>
             )}
           </>

@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -12,6 +11,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
+import {genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 const ExtractDataFromBMSImageInputSchema = z.object({
   photoDataUri: z
@@ -46,37 +47,6 @@ export async function extractDataFromBMSImage(input: ExtractDataFromBMSImageInpu
   return extractDataFromBMSImageFlow(input);
 }
 
-const extractDataPrompt = ai.definePrompt({
-    name: 'extractDataPrompt',
-    input: { schema: z.object({ photoDataUri: z.string() }) },
-    output: { schema: ExtractDataFromBMSImageOutputSchema },
-    model: 'googleai/gemini-1.5-flash-latest',
-    prompt: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
-        
-      Analyze the provided screenshot and extract the following key data points. Ensure the extracted values are accurate and properly formatted. If a value is not present in the screenshot, return null for that field.
-  
-      - Battery ID: Extract the unique identifier of the battery.
-      - State of Charge (SOC): Extract the State of Charge of the battery (%).
-      - Voltage: Extract the voltage of the battery (V).
-      - Current: Extract the current of the battery (A).
-      - Remaining Capacity: Extract the remaining capacity of the battery (Ah).
-      - Max Cell Voltage: Extract the maximum cell voltage (V).
-      - Min Cell Voltage: Extract the minimum cell voltage (V).
-      - Avg Cell Voltage: Extract the average cell voltage (V).
-      - Cell Voltage Difference: Extract the difference between the maximum and minimum cell voltages (V).
-      - Cycle Count: Extract the number of charge cycles the battery has undergone.
-      - Power: Extract the power of the battery (kW).
-      - MOS Charge Status: Extract the status of the MOS (Metal-Oxide-Semiconductor) during charging (Charge/Discharge).
-      - MOS Discharge Status: Extract the status of the MOS (Metal-Oxide-Semiconductor) during discharging (Charge/Discharge).
-      - Balance Status: Extract the balance status of the battery.
-      - Timestamp: Extract the timestamp (date and time) from the screenshot.
-  
-      Return the extracted data in JSON format.
-      
-      {{media url=photoDataUri}}
-      `,
-});
-
 const extractDataFromBMSImageFlow = ai.defineFlow(
   {
     name: 'extractDataFromBMSImageFlow',
@@ -85,24 +55,60 @@ const extractDataFromBMSImageFlow = ai.defineFlow(
   },
   async input => {
     logger.info('extractDataFromBMSImageFlow invoked.');
-    const { apiKey, ...promptData } = input;
+    const { apiKey, photoDataUri } = input;
     if (!apiKey) {
-      logger.error('API key is missing in extractDataFromBMSImageFlow');
+      logger.error('FATAL: API key is missing in extractDataFromBMSImageFlow');
       throw new Error('API key is required.');
     }
     
+    logger.info('HYPER-VERBOSE: API key received in flow:', apiKey.substring(0, 5) + '...');
+    
     try {
-        const { output } = await extractDataPrompt(promptData, { auth: { apiKey } });
+        const localAi = genkit({
+          plugins: [googleAI({apiKey})],
+        });
+
+        logger.info('HYPER-VERBOSE: Local AI instance created. Calling generate...');
+
+        const { output } = await localAi.generate({
+            model: 'googleai/gemini-1.5-flash-latest',
+            output: { schema: ExtractDataFromBMSImageOutputSchema },
+            prompt: [
+              {text: `You are an expert system designed to extract data from Battery Management System (BMS) screenshots.
+        
+              Analyze the provided screenshot and extract the following key data points. Ensure the extracted values are accurate and properly formatted. If a value is not present in the screenshot, return null for that field.
+          
+              - Battery ID: Extract the unique identifier of the battery.
+              - State of Charge (SOC): Extract the State of Charge of the battery (%).
+              - Voltage: Extract the voltage of the battery (V).
+              - Current: Extract the current of the battery (A).
+              - Remaining Capacity: Extract the remaining capacity of the battery (Ah).
+              - Max Cell Voltage: Extract the maximum cell voltage (V).
+              - Min Cell Voltage: Extract the minimum cell voltage (V).
+              - Avg Cell Voltage: Extract the average cell voltage (V).
+              - Cell Voltage Difference: Extract the difference between the maximum and minimum cell voltages (V).
+              - Cycle Count: Extract the number of charge cycles the battery has undergone.
+              - Power: Extract the power of the battery (kW).
+              - MOS Charge Status: Extract the status of the MOS (Metal-Oxide-Semiconductor) during charging (Charge/Discharge).
+              - MOS Discharge Status: Extract the status of the MOS (Metal-Oxide-Semiconductor) during discharging (Charge/Discharge).
+              - Balance Status: Extract the balance status of the battery.
+              - Timestamp: Extract the timestamp (date and time) from the screenshot.
+          
+              Return the extracted data in JSON format.
+            `},
+            {media: { url: photoDataUri }}
+          ]
+        });
         
         if (!output) {
-          logger.error('No output from AI');
+          logger.error('FATAL: No output from AI');
           throw new Error('No output from AI');
         }
 
         logger.info('extractDataFromBMSImageFlow successful.');
         return output;
     } catch (e: any) {
-        logger.error('Error in extractDataFromBMSImageFlow generate call:', e);
+        logger.error('FATAL: Error in extractDataFromBMSImageFlow generate call:', JSON.stringify(e, null, 2));
         throw e;
     }
   }

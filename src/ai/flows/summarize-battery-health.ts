@@ -11,6 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
+import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -33,7 +34,7 @@ const summarizeBatteryHealthPrompt = ai.definePrompt({
     name: 'summarizeBatteryHealthPrompt',
     input: { schema: SummarizeBatteryHealthInputSchema },
     output: { schema: SummarizeBatteryHealthOutputSchema },
-    model: 'googleai/gemini-1.5-flash-latest',
+    model: 'googleai/gemini-2.5-pro-preview-05-06',
     prompt: `You are an AI assistant specializing in summarizing battery health.
   
       Based on the provided data, generate a concise summary of the battery's overall health. Focus on translating the metrics into an easy-to-understand assessment for a non-technical user. Mention key indicators like cell balance (from voltage differences) and age (from cycle count).
@@ -57,6 +58,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
   },
   async input => {
     logger.info('summarizeBatteryHealthFlow invoked for battery:', input.batteryId);
+    dynamicallyInitializeGoogleAI();
     
     const { output } = await summarizeBatteryHealthPrompt(input);
     

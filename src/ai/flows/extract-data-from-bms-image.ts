@@ -12,6 +12,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
+import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const ExtractDataFromBMSImagesInputSchema = z.object({
   photoDataUris: z.array(
@@ -51,7 +52,7 @@ const extractDataPrompt = ai.definePrompt({
     name: 'extractDataPrompt',
     input: { schema: ExtractDataFromBMSImagesInputSchema },
     output: { schema: ExtractDataFromBMSImagesOutputSchema },
-    model: 'googleai/gemini-1.5-flash-latest',
+    model: 'googleai/gemini-2.5-pro-preview-05-06',
     prompt: `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.
     
       Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.
@@ -90,6 +91,7 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
   },
   async input => {
     logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoDataUris.length} images.`);
+    dynamicallyInitializeGoogleAI();
 
     const { output } = await extractDataPrompt(input);
     

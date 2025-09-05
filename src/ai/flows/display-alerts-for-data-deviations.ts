@@ -14,6 +14,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
+import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -37,7 +38,7 @@ const displayAlertsPrompt = ai.definePrompt({
     name: 'displayAlertsPrompt',
     input: { schema: DisplayAlertsInputSchema },
     output: { schema: DisplayAlertsOutputSchema },
-    model: 'googleai/gemini-1.5-flash-latest',
+    model: 'googleai/gemini-2.5-pro-preview-05-06',
     prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
   
       Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
@@ -70,6 +71,7 @@ const displayAlertsFlow = ai.defineFlow(
   },
   async input => {
     logger.info('displayAlertsFlow invoked with input for battery:', input.batteryId);
+    dynamicallyInitializeGoogleAI();
     
     const { output } = await displayAlertsPrompt(input);
 

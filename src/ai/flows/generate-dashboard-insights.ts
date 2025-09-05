@@ -13,6 +13,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {logger} from '@/lib/logger';
 import {getWeatherForecast} from './generate-power-recommendation'; // Re-using the weather tool
+import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const InsightSchema = z.object({
   title: z.string().describe('The short, headline-style question for the insight (e.g., "Will I Need the Generator?").'),
@@ -45,7 +46,7 @@ const insightsPrompt = ai.definePrompt({
   input: {schema: GenerateDashboardInsightsInputSchema},
   output: {schema: GenerateDashboardInsightsOutputSchema},
   tools: [getWeatherForecast],
-  model: 'googleai/gemini-1.5-flash-latest',
+  model: 'googleai/gemini-2.5-pro-preview-05-06',
   prompt: `You are an expert power management AI for an off-grid battery system. Your goal is to provide actionable, forward-looking insights based on the battery's current state and the weather forecast.
 
 Analyze the user's situation based on the provided data and the weather forecast obtained from the available tool. Generate exactly four insights to answer the following key questions. Be insightful and look ahead 24-48 hours.
@@ -85,6 +86,7 @@ const generateDashboardInsightsFlow = ai.defineFlow(
   },
   async input => {
     logger.info('generateDashboardInsightsFlow invoked with input:', input);
+    dynamicallyInitializeGoogleAI();
 
     const {output} = await insightsPrompt(input);
     if (!output) {

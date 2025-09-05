@@ -10,6 +10,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
+import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 // == Weather Tool Definition (Co-located) == //
 
@@ -136,7 +137,7 @@ const generatePowerRecommendationPrompt = ai.definePrompt({
     name: 'generatePowerRecommendationPrompt',
     input: { schema: GeneratePowerRecommendationInputSchema },
     output: { schema: GeneratePowerRecommendationOutputSchema },
-    model: 'googleai/gemini-1.5-flash-latest',
+    model: 'googleai/gemini-2.5-pro-preview-05-06',
     tools: [getWeatherForecast, getSunriseSunsetTimes],
     prompt: `You are an expert power management AI for an off-grid battery system.
       Your goal is to provide a concise, actionable recommendation to the user.
@@ -165,6 +166,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
   },
   async (input) => {
     logger.info('generatePowerRecommendationFlow invoked with input:', input);
+    dynamicallyInitializeGoogleAI();
 
     const { output } = await generatePowerRecommendationPrompt(input);
 

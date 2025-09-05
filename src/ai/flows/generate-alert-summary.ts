@@ -14,6 +14,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { logger } from '@/lib/logger';
+import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const GenerateAlertSummaryInputSchema = z.object({
   alerts: z.array(
@@ -31,7 +32,7 @@ const generateAlertSummaryPrompt = ai.definePrompt({
     name: 'generateAlertSummaryPrompt',
     input: { schema: GenerateAlertSummaryInputSchema },
     output: { schema: GenerateAlertSummaryOutputSchema },
-    model: 'googleai/gemini-1.5-flash-latest',
+    model: 'googleai/gemini-2.5-pro-preview-05-06',
     prompt: `You are an AI assistant specializing in summarizing battery alerts.
   
       Given the following list of alerts, generate a concise summary highlighting the most critical issues affecting the battery. Focus on providing actionable insights that allow users to quickly understand and respond to the problems.
@@ -56,6 +57,7 @@ const generateAlertSummaryFlow = ai.defineFlow(
   },
   async input => {
     logger.info('generateAlertSummaryFlow invoked.');
+    dynamicallyInitializeGoogleAI();
     
     const { output } = await generateAlertSummaryPrompt(input);
     

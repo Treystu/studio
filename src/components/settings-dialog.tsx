@@ -67,9 +67,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
           </div>
         </div>
         <DialogFooter className="sm:justify-between">
-          <div className="text-xs text-muted-foreground">
-            Version {version}
-          </div>
+            <div />
           <Button onClick={handleSave}>Save and Reload</Button>
         </DialogFooter>
       </DialogContent>

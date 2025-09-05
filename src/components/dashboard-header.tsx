@@ -13,6 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import SettingsDialog from './settings-dialog';
+import { version } from '../../package.json';
 
 interface DashboardHeaderProps {
   batteryIds: string[];
@@ -67,9 +68,10 @@ export default function DashboardHeader({
   return (
     <header className="sticky top-0 z-30 flex h-auto flex-col border-b bg-card px-4 shadow-sm md:px-6">
       <div className="flex h-16 items-center gap-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Battery className="h-7 w-7 text-primary" />
           <h1 className="text-xl font-bold tracking-tight">BatteryView</h1>
+          <span className="text-xs font-mono text-muted-foreground pt-1">v{version}</span>
         </div>
         
         <div className="flex w-full items-center justify-end gap-2 md:gap-4">

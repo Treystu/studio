@@ -42,7 +42,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
       Here is the battery data:
       ${JSON.stringify(input)}
   
-      Return the summary in JSON format corresponding to this schema: ${JSON.stringify(SummarizeBatteryHealthOutputSchema.jsonSchema())}
+      Return the summary in JSON format.
       `;
 
     const response = await ai.generate({
@@ -53,7 +53,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
       },
     });
 
-    const output = response.output();
+    const output = response?.output();
 
     if (!output) {
       throw new Error('No output from AI');

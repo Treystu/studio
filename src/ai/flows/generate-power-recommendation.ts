@@ -124,7 +124,7 @@ const generatePowerRecommendationFlow = ai.defineFlow(
         },
     });
 
-    const output = response.output();
+    const output = response?.output();
 
     if (!output) {
       throw new Error('No output from AI');

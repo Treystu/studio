@@ -57,7 +57,7 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
       throw new Error('AI response is null or undefined');
     }
 
-    const output = response.output();
+    const output = response.output;
 
     if (!output) {
       throw new Error('No output from AI');

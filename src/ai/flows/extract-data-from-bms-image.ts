@@ -10,7 +10,8 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z, media } from 'genkit';
+import { z } from 'genkit';
+import { media } from '@genkit-ai/core';
 import { logger } from '@/lib/logger';
 
 const ExtractDataFromBMSImagesInputSchema = z.object({
@@ -75,7 +76,7 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
         throw new Error('AI response is null or undefined');
     }
 
-    const output = response.output;
+    const output = response.output();
 
     if (!output) {
       throw new Error('No output from AI');

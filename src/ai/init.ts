@@ -11,7 +11,7 @@ let isInitialized = false;
  * Ensures that Genkit is initialized safely and only once, even if called multiple times.
  * Adds verbose logging to trace the initialization process.
  */
-export function dynamicallyInitializeGoogleAI() {
+export async function dynamicallyInitializeGoogleAI() {
   // isConfigured() is Genkit's built-in check.
   if (!isInitialized && !isConfigured()) {
     logger.info('Attempting to initialize Genkit...');

@@ -1,39 +1,40 @@
 
-import { googleAI } from '@genkit-ai/googleai';
-import { GenkitOptions } from 'genkit';
+'use server';
+
+import { configureGenkit } from '@/ai/genkit';
 import { logger } from '@/lib/logger';
 
-// A map to track which plugins have been initialized
-const initializedPlugins = new Map<string, boolean>();
+let googleAI: any = null;
 
-/**
- * Dynamically initializes the Google AI plugin if it hasn't been already.
- * This is to avoid build-time errors and to only initialize it when needed.
- */
-export function dynamicallyInitializeGoogleAI() {
-  const pluginName = 'googleAI';
-  if (initializedPlugins.has(pluginName)) {
+export async function dynamicallyInitializeGoogleAI() {
+  if (googleAI) {
+    logger.info('Google AI plugin already initialized.');
     return;
   }
 
   logger.info('Dynamically initializing Google AI plugin...');
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    logger.error('GEMINI_API_KEY environment variable not found.');
-    throw new Error('GEMINI_API_KEY environment variable not set. The API key is required to use Google AI models.');
+  // Log to check if the API key is present
+  if (process.env.GOOGLE_API_KEY) {
+    logger.info('GOOGLE_API_KEY is found in the environment.');
+  } else {
+    logger.error('CRITICAL: GOOGLE_API_KEY is NOT FOUND in the environment.');
   }
 
-  const genkitOptions: GenkitOptions = {
-    plugins: [googleAI({ apiKey })],
-  };
+  try {
+    const { googleAI: googleAIFactory } = await import('@genkit-ai/googleai');
+    googleAI = googleAIFactory({
+      apiKey: process.env.GOOGLE_API_KEY,
+    });
 
-  // We are not calling genkit() here because it's already been called in genkit.ts
-  // We are just adding the plugin to the existing configuration
-  // This is a bit of a hack, but it's necessary to avoid re-initializing everything
-  // @ts-ignore - We are accessing a private property to add the plugin
-  global.__genkitPluginRegistry?.register(pluginName, genkitOptions.plugins[0]);
-
-  initializedPlugins.set(pluginName, true);
-  logger.info('Google AI plugin initialized.');
+    configureGenkit({
+      plugins: [googleAI],
+      logLevel: 'debug',
+      enableTracingAndMetrics: true,
+    });
+    logger.info('Google AI plugin configured.');
+  } catch (e) {
+    logger.error('Failed to initialize or configure Google AI plugin', e);
+    throw e; // Rethrow to see the error in the main log
+  }
 }

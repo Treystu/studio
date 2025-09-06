@@ -27,7 +27,7 @@ const alertSummaryPrompt = ai.definePrompt({
   name: 'generateAlertSummaryPrompt',
   input: {schema: GenerateAlertSummaryInputSchema},
   output: {schema: GenerateAlertSummaryOutputSchema},
-  model: 'googleAI/gemini-2.5-flash',
+  model: 'googleAI/gemini-1.5-flash-latest',
   prompt: `You are an AI assistant for an off-grid power system. Your task is to analyze a list of recent alerts, identify the most critical one, and provide a clear, one-sentence summary and a single actionable recommendation.
 
 Here are the alerts:

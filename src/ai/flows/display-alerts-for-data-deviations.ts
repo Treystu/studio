@@ -58,7 +58,11 @@ const displayAlertsFlow = ai.defineFlow(
       },
     });
 
-    const output = response?.output();
+    if (!response) {
+      throw new Error('AI response is null or undefined');
+    }
+
+    const output = response.output();
 
     if (!output) {
       throw new Error('No output from AI');

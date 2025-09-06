@@ -1,7 +1,7 @@
 
 'use server';
 
-import { configureGenkit } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { logger } from '@/lib/logger';
 
 let googleAI: any = null;
@@ -27,7 +27,7 @@ export async function dynamicallyInitializeGoogleAI() {
       apiKey: process.env.GOOGLE_API_KEY,
     });
 
-    configureGenkit({
+    ai.configure({
       plugins: [googleAI],
       logLevel: 'debug',
       enableTracingAndMetrics: true,

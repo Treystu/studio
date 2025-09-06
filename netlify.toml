@@ -1,6 +1,6 @@
 # Cache-busting comment
 [build]
-  command = "npm run build"
+  command = "rm -rf .next && npm run build"
   publish = ".next"
 
 [build.environment]

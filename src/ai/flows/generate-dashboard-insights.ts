@@ -46,7 +46,7 @@ const insightsPrompt = ai.definePrompt({
   input: {schema: GenerateDashboardInsightsInputSchema},
   output: {schema: GenerateDashboardInsightsOutputSchema},
   tools: [getWeatherForecast],
-  model: 'googleAI/gemini-1.5-flash',
+  model: 'googleAI/gemini-1.5-flash-001',
   prompt: `You are an expert power management AI for an off-grid battery system. Your goal is to provide actionable, forward-looking insights based on the battery's current state and the weather forecast.
 
 Analyze the user's situation based on the provided data and the weather forecast obtained from the available tool. Generate exactly four insights to answer the following key questions. Be insightful and look ahead 24-48 hours.
@@ -75,7 +75,7 @@ Analyze the user's situation based on the provided data and the weather forecast
 *   State of Charge (SOC): {{{latestData.soc}}}%
 *   Current Power Draw: {{{latestData.power}}} kW
 
-Use the tools available to get the weather forecast to inform your answers. Structure your response in the requested JSON format with exactly four insights.`,
+Use the tools available to get the weather forecast to inform your answers. Structure your response in the requested. JSON format with exactly four insights.`,
 });
 
 const generateDashboardInsightsFlow = ai.defineFlow(

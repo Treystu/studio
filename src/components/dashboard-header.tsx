@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import SettingsDialog from './settings-dialog';
-import { version } from '../../package.json';
+import pkg from '../../package.json';
 
 interface DashboardHeaderProps {
   batteryIds: string[];
@@ -64,7 +64,7 @@ export default function DashboardHeader({
         <div className="flex items-center gap-3">
           <Battery className="h-7 w-7 text-primary" />
           <h1 className="text-xl font-bold tracking-tight">BatteryView</h1>
-          <span className="text-xs font-mono text-muted-foreground pt-1">v{version}</span>
+          <span className="text-xs font-mono text-muted-foreground pt-1">v{pkg.version}</span>
         </div>
         
         <div className="flex w-full items-center justify-end gap-2 md:gap-4">

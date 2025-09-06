@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { version } from '../../package.json';
+import pkg from '../../package.json';
 import { useBatteryData } from "@/hooks/use-battery-data";
 import { logger } from "@/lib/logger";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -22,7 +22,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
   const handleDownloadDiagnostics = () => {
     const diagnostics = {
       timestamp: new Date().toISOString(),
-      version,
+      version: pkg.version,
       verboseLogging: logger.isVerboseEnabled(),
       browser: {
         userAgent: navigator.userAgent,

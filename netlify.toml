@@ -7,4 +7,4 @@
   NODE_VERSION = "20"
 
 [functions]
-  external_node_modules = ["@genkit-ai/googleai"]
+  external_node_modules = ["@genkit-ai/googleai", "@genkit-ai/core"]

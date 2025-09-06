@@ -27,7 +27,7 @@ const alertSummaryPrompt = ai.definePrompt({
   name: 'generateAlertSummaryPrompt',
   input: {schema: GenerateAlertSummaryInputSchema},
   output: {schema: GenerateAlertSummaryOutputSchema},
-  model: 'gemini-2.5-flash',
+  model: 'googleAI/gemini-2.5-flash',
   prompt: `You are an AI assistant for an off-grid power system. Your task is to analyze a list of recent alerts, identify the most critical one, and provide a clear, one-sentence summary and a single actionable recommendation.
 
 Here are the alerts:
@@ -57,7 +57,7 @@ const generateAlertSummaryFlow = ai.defineFlow(
   },
   async input => {
     logger.info('generateAlertSummaryFlow invoked with input:', input);
-    dynamicallyInitializeGoogleAI();
+    await dynamicallyInitializeGoogleAI();
     const {output} = await alertSummaryPrompt(input);
     if (!output) {
       throw new Error('No output from AI');

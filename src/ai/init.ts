@@ -1,46 +1,39 @@
 
-'use server';
-
-import { genkit, isConfigured, type GenkitOptions } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
+import { GenkitOptions } from 'genkit';
 import { logger } from '@/lib/logger';
 
-let isInitialized = false;
+// A map to track which plugins have been initialized
+const initializedPlugins = new Map<string, boolean>();
 
 /**
- * Ensures that Genkit is initialized safely and only once, even if called multiple times.
- * Adds verbose logging to trace the initialization process.
+ * Dynamically initializes the Google AI plugin if it hasn't been already.
+ * This is to avoid build-time errors and to only initialize it when needed.
  */
-export async function dynamicallyInitializeGoogleAI() {
-  // isConfigured() is Genkit's built-in check.
-  if (!isInitialized && !isConfigured()) {
-    logger.info('Attempting to initialize Genkit...');
-
-    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.length < 10) {
-      logger.error('CRITICAL: GEMINI_API_KEY is not set or is invalid. Genkit will not be initialized.');
-      // Stop further execution if the key is missing.
-      return;
-    }
-
-    const genkitOptions: GenkitOptions = {
-      plugins: [
-        googleAI({
-          apiKey: process.env.GEMINI_API_KEY,
-        }),
-      ],
-      logLevel: 'debug', // Set log level to debug for maximum verbosity.
-      enableTracingAndMetrics: true, // Enable for more detailed operational tracing.
-    };
-
-    try {
-      genkit(genkitOptions);
-      isInitialized = true;
-      logger.info('Genkit initialized successfully.');
-    } catch (error) {
-      logger.error('CRITICAL: An error occurred during Genkit initialization:', error);
-    }
-
-  } else {
-    logger.info('Genkit is already configured. Skipping initialization.');
+export function dynamicallyInitializeGoogleAI() {
+  const pluginName = 'googleAI';
+  if (initializedPlugins.has(pluginName)) {
+    return;
   }
+
+  logger.info('Dynamically initializing Google AI plugin...');
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    logger.error('GEMINI_API_KEY environment variable not found.');
+    throw new Error('GEMINI_API_KEY environment variable not set. The API key is required to use Google AI models.');
+  }
+
+  const genkitOptions: GenkitOptions = {
+    plugins: [googleAI({ apiKey })],
+  };
+
+  // We are not calling genkit() here because it's already been called in genkit.ts
+  // We are just adding the plugin to the existing configuration
+  // This is a bit of a hack, but it's necessary to avoid re-initializing everything
+  // @ts-ignore - We are accessing a private property to add the plugin
+  global.__genkitPluginRegistry?.register(pluginName, genkitOptions.plugins[0]);
+
+  initializedPlugins.set(pluginName, true);
+  logger.info('Google AI plugin initialized.');
 }

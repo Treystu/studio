@@ -15,16 +15,16 @@ export async function dynamicallyInitializeGoogleAI() {
   logger.info('Dynamically initializing Google AI plugin...');
 
   // Log to check if the API key is present
-  if (process.env.GOOGLE_API_KEY) {
-    logger.info('GOOGLE_API_KEY is found in the environment.');
+  if (process.env.GEMINI_API_KEY) {
+    logger.info('GEMINI_API_KEY is found in the environment.');
   } else {
-    logger.error('CRITICAL: GOOGLE_API_KEY is NOT FOUND in the environment.');
+    logger.error('CRITICAL: GEMINI_API_KEY is NOT FOUND in the environment.');
   }
 
   try {
     const { googleAI: googleAIFactory } = await import('@genkit-ai/googleai');
     googleAI = googleAIFactory({
-      apiKey: process.env.GOOGLE_API_KEY,
+      apiKey: process.env.GEMINI_API_KEY,
     });
 
     ai.configure({

@@ -56,7 +56,7 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
   async input => {
     logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoUrls.length} images.`);
 
-    const promptText = `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.\n    \n      Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.\n  \n      For each image, extract:\n      - Battery ID: The unique identifier of the battery.\n      - State of Charge (SOC): (%)\n      - Voltage: (V)\n      - Current: (A)\n      - Remaining Capacity: (Ah)\n      - Max, Min, Avg Cell Voltage: (V)\n      - Cell Voltage Difference: (V)\n      - Cycle Count\n      - Power: (kW)\n      - MOS Charge & Discharge Status\n      - Balance Status\n      - Timestamp: (date and time) from the screenshot.\n  \n      Return all extracted data points in a single JSON object containing a "results" array. The JSON should conform to this schema: ${JSON.stringify(ExtractDataFromBMSImagesOutputSchema.jsonSchema())}`;
+    const promptText = `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.\n    \n      Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.\n  \n      For each image, extract:\n      - Battery ID: The unique identifier of the battery.\n      - State of Charge (SOC): (%)\n      - Voltage: (V)\n      - Current: (A)\n      - Remaining Capacity: (Ah)\n      - Max, Min, Avg Cell Voltage: (V)\n      - Cell Voltage Difference: (V)\n      - Cycle Count\n      - Power: (kW)\n      - MOS Charge & Discharge Status\n      - Balance Status\n      - Timestamp: (date and time) from the screenshot.\n  \n      Return all extracted data points in a single JSON object containing a "results" array.`;
 
     const promptParts: (string | z.ZodType<any, any, any>)[] = [promptText];
     input.photoUrls.forEach(url => {
@@ -70,6 +70,10 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
         schema: ExtractDataFromBMSImagesOutputSchema,
       },
     });
+
+    if (!response) {
+        throw new Error('AI response is null or undefined');
+    }
 
     const output = response.output();
 

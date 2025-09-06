@@ -10,7 +10,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { logger } from '@/lib/logger';
-import { getInitializedAI } from '@/ai/init';
 
 // == Weather Tool Definition (Co-located) == //
 
@@ -87,34 +86,6 @@ export const getWeatherForecast = ai.defineTool(
   }
 );
 
-// == Sunrise/Sunset Tool Definition == //
-const sunTimesSchema = z.object({
-    sunrise: z.string().describe("Today's sunrise time in HH:MM AM/PM format."),
-    sunset: z.string().describe("Today's sunset time in HH:MM AM/PM format."),
-});
-
-const getSunriseSunsetTimes = ai.defineTool(
-    {
-        name: 'getSunriseSunsetTimes',
-        description: 'Returns the sunrise and sunset times for a given location and date.',
-        inputSchema: z.object({
-            location: z.string().describe('The city and state, e.g. Pahoa, HI'),
-        }),
-        outputSchema: sunTimesSchema,
-    },
-    async ({ location }) => {
-        logger.info(`TOOL: getSunriseSunsetTimes invoked for ${location}`);
-        // In a real app, you would call a real API.
-        // For this example, we return mock data.
-        if (location.toLowerCase().includes('pahoa')) {
-            return { sunrise: '6:15 AM', sunset: '6:45 PM' };
-        }
-        // Default values
-        return { sunrise: '6:30 AM', sunset: '7:30 PM' };
-    }
-);
-
-
 // == Power Recommendation Flow == //
 
 const GeneratePowerRecommendationInputSchema = z.object({
@@ -141,14 +112,13 @@ const generatePowerRecommendationFlow = ai.defineFlow(
   },
   async (input) => {
     logger.info('generatePowerRecommendationFlow invoked with input:', input);
-    const initializedAI = await getInitializedAI();
 
-    const prompt = `You are an expert power management AI for an off-grid battery system.\n      Your goal is to provide a concise, actionable recommendation to the user.\n      \n      Analyze the current battery status, the weather forecast for the next 3 days, and the sunrise/sunset times.\n      \n      Based on the State of Charge (SOC), current power draw, and upcoming sun exposure (using the sun_hours field), provide a single, clear recommendation.\n      - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").\n      - If the SOC is low and cloudy weather is coming, recommend conserving power or running a generator.\n      - If the SOC is moderate, give a balanced recommendation.\n      - Frame the recommendation in a single, easy-to-understand sentence. Be friendly and encouraging.\n      \n      Current Battery Status:\n      - State of Charge (SOC): ${input.soc}%\n      - Current Power: ${input.power} kW (${input.power > 0 ? 'Discharging' : 'Charging'})\n      \n      The user is located in ${input.location}. Use the available tools to get the upcoming weather and today's sunrise/sunset times. The output should be a JSON object conforming to this schema: ${JSON.stringify(GeneratePowerRecommendationOutputSchema.jsonSchema())}`;
+    const prompt = `You are an expert power management AI for an off-grid battery system.\n      Your goal is to provide a concise, actionable recommendation to the user.\n      \n      Analyze the current battery status and the weather forecast for the next 3 days.\n      \n      Based on the State of Charge (SOC), current power draw, and upcoming sun exposure (using the sun_hours field), provide a single, clear recommendation.\n      - If the SOC is high and lots of sun is expected, recommend using more power (e.g., "run the dehumidifier").\n      - If the SOC is low and cloudy weather is coming, recommend conserving power or running a generator.\n      - If the SOC is moderate, give a balanced recommendation.\n      - Frame the recommendation in a single, easy-to-understand sentence. Be friendly and encouraging.\n      \n      Current Battery Status:\n      - State of Charge (SOC): ${input.soc}%\n      - Current Power: ${input.power} kW (${input.power > 0 ? 'Discharging' : 'Charging'})\n      \n      The user is located in ${input.location}. Use the available tools to get the upcoming weather. The output should be a JSON object.`
 
-    const response = await initializedAI.generate({
+    const response = await ai.generate({
         model: 'gemini-1.5-flash-latest',
         prompt: prompt,
-        tools: [getWeatherForecast, getSunriseSunsetTimes],
+        tools: [getWeatherForecast],
         output: {
             schema: GeneratePowerRecommendationOutputSchema,
         },

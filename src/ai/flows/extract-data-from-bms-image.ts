@@ -52,7 +52,7 @@ const extractDataPrompt = ai.definePrompt({
     name: 'extractDataPrompt',
     input: { schema: ExtractDataFromBMSImagesInputSchema },
     output: { schema: ExtractDataFromBMSImagesOutputSchema },
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash-preview-05-20',
     prompt: `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.
     
       Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.
@@ -91,7 +91,7 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
   },
   async input => {
     logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoUrls.length} images.`);
-    dynamicallyInitializeGoogleAI();
+    await dynamicallyInitializeGoogleAI();
 
     const { output } = await extractDataPrompt(input);
     

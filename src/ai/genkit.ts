@@ -1,9 +1,14 @@
 import {genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
-// IMPORTANT: We do NOT initialize any plugins here globally for production.
-// Doing so would require the API key at build time, which is not available in Netlify.
-// The `ai` object is used ONLY to define flows with `ai.defineFlow(...)`.
-// The actual AI model initialization must happen inside each flow dynamically.
+const plugins = [];
+
+if (process.env.GEMINI_API_KEY) {
+  plugins.push(googleAI({apiKey: process.env.GEMINI_API_KEY}));
+}
+
 export const ai = genkit({
-  plugins: [],
+  plugins,
+  logLevel: 'debug',
+  enableTracingAndMetrics: true,
 });

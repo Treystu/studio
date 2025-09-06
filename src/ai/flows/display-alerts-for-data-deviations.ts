@@ -11,10 +11,10 @@
  * - DisplayAlertsOutput - The return type for the displayAlertsForDataDeviations function, listing any alerts.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 import { logger } from '@/lib/logger';
-import { dynamicallyInitializeGoogleAI } from '@/ai/init';
+import { getInitializedAI } from '@/ai/init';
 
 const DisplayAlertsInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -34,29 +34,6 @@ const DisplayAlertsOutputSchema = z.object({
 });
 export type DisplayAlertsOutput = z.infer<typeof DisplayAlertsOutputSchema>;
 
-const displayAlertsPrompt = ai.definePrompt({
-    name: 'displayAlertsPrompt',
-    input: { schema: DisplayAlertsInputSchema },
-    output: { schema: DisplayAlertsOutputSchema },
-    model: 'googleAI/gemini-1.5-flash-001',
-    prompt: `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.
-  
-      Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:
-      1. A rapid drop in SOC (State of Charge).
-      2. A high voltage difference between cells (maxCellVoltage - minCellVoltage).
-  
-      If maxCellVoltage or minCellVoltage are null or 0, do not generate an alert for cell voltage inconsistency. Only generate alerts for valid, non-zero voltage readings that indicate a problem.
-  
-      Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.
-  
-      Here is the a battery data:
-      {{{jsonStringify this}}}
-  
-      Return the alerts in a JSON format.
-      `,
-});
-
-
 export async function displayAlertsForDataDeviations(
   input: DisplayAlertsInput
 ): Promise<DisplayAlertsOutput> {
@@ -69,14 +46,25 @@ const displayAlertsFlow = ai.defineFlow(
     inputSchema: DisplayAlertsInputSchema,
     outputSchema: DisplayAlertsOutputSchema,
   },
-  async input => {
+  async (input) => {
     logger.info('displayAlertsFlow invoked with input for battery:', input.batteryId);
-    dynamicallyInitializeGoogleAI();
-    
-    const { output } = await displayAlertsPrompt(input);
+
+    const initializedAI = await getInitializedAI();
+
+    const prompt = `You are an AI assistant specializing in identifying critical data deviations in battery data and generating alerts.\n  \n      Analyze the following battery data and determine if any major deviations have occurred.  Specifically, look for:\n      1. A rapid drop in SOC (State of Charge).\n      2. A high voltage difference between cells (maxCellVoltage - minCellVoltage).\n  \n      If maxCellVoltage or minCellVoltage are null or 0, do not generate an alert for cell voltage inconsistency. Only generate alerts for valid, non-zero voltage readings that indicate a problem.\n  \n      Based on your analysis, generate a list of alerts describing the issues. If no significant deviations are detected, return an empty list.\n  \n      Here is the a battery data:\n      ${JSON.stringify(input)}\n  \n      Return the alerts in a JSON format conforming to this schema: ${JSON.stringify(DisplayAlertsOutputSchema.jsonSchema())}\n      `;
+
+    const response = await initializedAI.generate({
+      model: 'gemini-1.5-flash-latest',
+      prompt: prompt,
+      output: {
+        schema: DisplayAlertsOutputSchema,
+      },
+    });
+
+    const output = response.output();
 
     if (!output) {
-        throw new Error('No output from AI');
+      throw new Error('No output from AI');
     }
 
     logger.info('displayAlertsFlow successful for:', input.batteryId);

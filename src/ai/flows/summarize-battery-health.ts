@@ -1,17 +1,9 @@
 
 'use server';
 
-/**
- * This file defines a Genkit flow to summarize the battery's health based on extracted data.
- * - summarizeBatteryHealth: A function that triggers the health summary generation.
- * - SummarizeBatteryHealthInput: The input type for the summarizeBatteryHealth function.
- * - SummarizeBatteryHealthOutput: The return type for the summarizeBatteryHealth function.
-*/
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 import { logger } from '@/lib/logger';
-import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const SummarizeBatteryHealthInputSchema = z.object({
   batteryId: z.string().describe('The ID of the battery.'),
@@ -30,22 +22,6 @@ const SummarizeBatteryHealthOutputSchema = z.object({
 });
 export type SummarizeBatteryHealthOutput = z.infer<typeof SummarizeBatteryHealthOutputSchema>;
 
-const summarizeBatteryHealthPrompt = ai.definePrompt({
-    name: 'summarizeBatteryHealthPrompt',
-    input: { schema: SummarizeBatteryHealthInputSchema },
-    output: { schema: SummarizeBatteryHealthOutputSchema },
-    model: 'googleAI/gemini-1.5-flash-001',
-    prompt: `You are an AI assistant specializing in summarizing battery health.
-  
-      Based on the provided data, generate a concise summary of the battery's overall health. Focus on translating the metrics into an easy-to-understand assessment for a non-technical user. Mention key indicators like cell balance (from voltage differences) and age (from cycle count).
-  
-      Here is the battery data:
-      {{{jsonStringify this}}}
-  
-      Return the summary in JSON format.
-      `,
-});
-
 export async function summarizeBatteryHealth(input: SummarizeBatteryHealthInput): Promise<SummarizeBatteryHealthOutput> {
   return summarizeBatteryHealthFlow(input);
 }
@@ -56,14 +32,31 @@ const summarizeBatteryHealthFlow = ai.defineFlow(
     inputSchema: SummarizeBatteryHealthInputSchema,
     outputSchema: SummarizeBatteryHealthOutputSchema,
   },
-  async input => {
+  async (input) => {
     logger.info('summarizeBatteryHealthFlow invoked for battery:', input.batteryId);
-    dynamicallyInitializeGoogleAI();
-    
-    const { output } = await summarizeBatteryHealthPrompt(input);
-    
+
+    const prompt = `You are an AI assistant specializing in summarizing battery health.
+  
+      Based on the provided data, generate a concise summary of the battery's overall health. Focus on translating the metrics into an easy-to-understand assessment for a non-technical user. Mention key indicators like cell balance (from voltage differences) and age (from cycle count).
+  
+      Here is the battery data:
+      ${JSON.stringify(input)}
+  
+      Return the summary in JSON format corresponding to this schema: ${JSON.stringify(SummarizeBatteryHealthOutputSchema.jsonSchema())}
+      `;
+
+    const response = await ai.generate({
+      model: 'gemini-1.5-flash-latest',
+      prompt: prompt,
+      output: {
+        schema: SummarizeBatteryHealthOutputSchema,
+      },
+    });
+
+    const output = response.output();
+
     if (!output) {
-        throw new Error('No output from AI');
+      throw new Error('No output from AI');
     }
 
     logger.info('summarizeBatteryHealthFlow successful for:', input.batteryId);

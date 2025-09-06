@@ -9,18 +9,14 @@
  * - ExtractDataFromBMSImagesOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z, media } from 'genkit';
 import { logger } from '@/lib/logger';
-import { dynamicallyInitializeGoogleAI } from '@/ai/init';
 
 const ExtractDataFromBMSImagesInputSchema = z.object({
   photoUrls: z.array(
-    z
-    .string()
-    .describe(
-      "A URL or data URI of a photo of a BMS screenshot."
-    ))
+    z.string().describe("A URL or data URI of a photo of a BMS screenshot.")
+  )
 });
 export type ExtractDataFromBMSImagesInput = z.infer<typeof ExtractDataFromBMSImagesInputSchema>;
 
@@ -43,41 +39,9 @@ const SingleBMSDataSchema = z.object({
 });
 
 const ExtractDataFromBMSImagesOutputSchema = z.object({
-    results: z.array(SingleBMSDataSchema)
+  results: z.array(SingleBMSDataSchema)
 });
 export type ExtractDataFromBMSImagesOutput = z.infer<typeof ExtractDataFromBMSImagesOutputSchema>;
-
-
-const extractDataPrompt = ai.definePrompt({
-    name: 'extractDataPrompt',
-    input: { schema: ExtractDataFromBMSImagesInputSchema },
-    output: { schema: ExtractDataFromBMSImagesOutputSchema },
-    model: 'googleAI/gemini-1.5-flash-latest',
-    prompt: `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.
-    
-      Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.
-  
-      For each image, extract:
-      - Battery ID: The unique identifier of the battery.
-      - State of Charge (SOC): (%)
-      - Voltage: (V)
-      - Current: (A)
-      - Remaining Capacity: (Ah)
-      - Max, Min, Avg Cell Voltage: (V)
-      - Cell Voltage Difference: (V)
-      - Cycle Count
-      - Power: (kW)
-      - MOS Charge & Discharge Status
-      - Balance Status
-      - Timestamp: (date and time) from the screenshot.
-  
-      Return all extracted data points in a single JSON object containing a "results" array.
-      
-      {{#each photoUrls}}
-      {{media url=this}}
-      {{/each}}
-    `,
-});
 
 export async function extractDataFromBMSImages(input: ExtractDataFromBMSImagesInput): Promise<ExtractDataFromBMSImagesOutput> {
   return extractDataFromBMSImagesFlow(input);
@@ -91,10 +55,24 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
   },
   async input => {
     logger.info(`extractDataFromBMSImagesFlow invoked with ${input.photoUrls.length} images.`);
-    await dynamicallyInitializeGoogleAI();
 
-    const { output } = await extractDataPrompt(input);
-    
+    const promptText = `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.\n    \n      Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.\n  \n      For each image, extract:\n      - Battery ID: The unique identifier of the battery.\n      - State of Charge (SOC): (%)\n      - Voltage: (V)\n      - Current: (A)\n      - Remaining Capacity: (Ah)\n      - Max, Min, Avg Cell Voltage: (V)\n      - Cell Voltage Difference: (V)\n      - Cycle Count\n      - Power: (kW)\n      - MOS Charge & Discharge Status\n      - Balance Status\n      - Timestamp: (date and time) from the screenshot.\n  \n      Return all extracted data points in a single JSON object containing a "results" array. The JSON should conform to this schema: ${JSON.stringify(ExtractDataFromBMSImagesOutputSchema.jsonSchema())}`;
+
+    const promptParts: (string | z.ZodType<any, any, any>)[] = [promptText];
+    input.photoUrls.forEach(url => {
+      promptParts.push(media({ url }));
+    });
+
+    const response = await ai.generate({
+      model: 'gemini-1.5-flash-latest',
+      prompt: promptParts,
+      output: {
+        schema: ExtractDataFromBMSImagesOutputSchema,
+      },
+    });
+
+    const output = response.output();
+
     if (!output) {
       throw new Error('No output from AI');
     }

@@ -11,7 +11,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { media } from '@genkit-ai/core';
 import { logger } from '@/lib/logger';
 
 const ExtractDataFromBMSImagesInputSchema = z.object({
@@ -59,10 +58,10 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
 
     const promptText = `You are an expert system designed to extract data from multiple Battery Management System (BMS) screenshots.\n    \n      Analyze all the provided screenshots and extract the key data points from each one. Ensure the extracted values are accurate and properly formatted. If a value is not present in a screenshot, return null for that field.\n  \n      For each image, extract:\n      - Battery ID: The unique identifier of the battery.\n      - State of Charge (SOC): (%)\n      - Voltage: (V)\n      - Current: (A)\n      - Remaining Capacity: (Ah)\n      - Max, Min, Avg Cell Voltage: (V)\n      - Cell Voltage Difference: (V)\n      - Cycle Count\n      - Power: (kW)\n      - MOS Charge & Discharge Status\n      - Balance Status\n      - Timestamp: (date and time) from the screenshot.\n  \n      Return all extracted data points in a single JSON object containing a "results" array.`;
 
-    const promptParts: (string | z.ZodType<any, any, any>)[] = [promptText];
-    input.photoUrls.forEach(url => {
-      promptParts.push(media({ url }));
-    });
+    const promptParts = [
+        { text: promptText },
+        ...input.photoUrls.map(url => ({ media: { url } }))
+    ];
 
     const response = await ai.generate({
       model: 'gemini-1.5-flash-latest',
@@ -76,7 +75,7 @@ const extractDataFromBMSImagesFlow = ai.defineFlow(
         throw new Error('AI response is null or undefined');
     }
 
-    const output = response.output();
+    const output = response.output;
 
     if (!output) {
       throw new Error('No output from AI');
